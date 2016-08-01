@@ -1,6 +1,6 @@
 from flask_nemo.plugin import PluginPrototype
 from pkg_resources import resource_filename
-from flask import url_for, send_from_directory
+from flask import url_for, send_from_directory, Markup
 """from nemo_oauth_plugin import NemoOauthPlugin"""
 
 
@@ -21,6 +21,7 @@ class AnnotatorPlugin(PluginPrototype):
         update = kwargs
         if "template" in kwargs and kwargs["template"] == "main::text.html":
             update["template"] = "annotator::text.html"
+            update["text_passage"] = Markup(' '.join([ x.strip() for x in kwargs["text_passage"].splitlines() ]))
         return update
 
     def r_annotator_assets(self, filename):
