@@ -180,3 +180,67 @@ pre {
 .tt-suggestion p {
     margin: 0;
 }
+.tt-input {
+    height:40px !important;
+    top:-5px !important;
+}
+
+.node > circle {
+    fill: #888;
+    stroke: white;
+    stroke-width: 4;
+}
+.node:hover > circle {
+    fill: red;
+}
+line.link {
+    stroke: #555;
+    stroke-width: 1.5;
+    opacity: 0.7;
+}
+line.link:hover {
+    fill:red;
+    stroke: red;
+}
+
+
+.triple {
+    position:relative;
+    overflow: hidden;
+    margin:20px;
+    height:40px;
+    border-radius:5px;
+    border:1px solid lightgrey;
+    z-index:2;
+    box-sizing: border-box;
+}
+.component {
+    position: absolute;
+    top: 0px;
+    width: 100%;
+    height: 100%;
+}
+div.up, div.btn-delete {
+    width: 50px;
+    padding: 5px;
+    text-align: center;
+    cursor: pointer;
+}
+div.content, div.display, div.edit, div.sentence, div.btn-accept {
+    left: 0px;
+}
+input.component {
+    left: 50px;
+}
+div.btn-delete {
+    right:0;
+    background-color:orangered;
+}
+div.btn-accept {
+    background-color: limegreen;
+    z-index:1;
+}
+div.btn-discard {
+    right:0px;
+    background-color: gold;
+}
