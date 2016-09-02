@@ -1,7 +1,7 @@
 {% extends "main::container.html" %}
 
 {% block article %}
-<article id="annotator-main" data-urn="urn:cts:{{url['collection']}}:{{url['textgroup']}}.{{url['work']}}.{{url['version']}}:{{url['passage_identifier']}}" data-sparql-endpoint="/annotator-assets/json/sparql-result.json" data-user="{{session['oauth_user_uri']}}">
+<article id="annotator-main" data-urn="urn:cts:{{url['collection']}}:{{url['textgroup']}}.{{url['work']}}.{{url['version']}}:{{url['passage_identifier']}}" data-sparql-endpoint="/annotator/assets/json/sparql-result.json" data-user="{{session['oauth_user_uri']}}">
     <header>
         <h1>{{version.parents[0].metadata["title"][lang]}}</h1>
         <h2>{{version.parents[1].metadata["groupname"][lang]}}</h2>
@@ -33,6 +33,7 @@
 {% block additionalscript %}
 <script type="text/javascript" src="/annotator/assets/js/rdfstore.js"></script>
 <script type="text/javascript" src="/annotator/assets/js/annotator.js"></script>
+<link rel="stylesheet" href="/annotator/assets/css/annotator.css">
 <script type="text/javascript">
     $(window).load(function() {
         (new Plokamos(document.getElementById('annotator-main'))).initialize()

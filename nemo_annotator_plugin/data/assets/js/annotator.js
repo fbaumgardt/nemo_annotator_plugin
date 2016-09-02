@@ -27546,11 +27546,12 @@
 	}();
 
 	var Model = function () {
-	    function Model() {
+	    function Model(app) {
 	        var _this = this;
 
 	        classCallCheck(this, Model);
 
+	        this.app = app;
 	        this.defaultDataset = [];
 	        this.namedDataset = [];
 	        this.store = {};
@@ -27605,10 +27606,11 @@
 
 	    createClass(Model, [{
 	        key: 'load',
-	        value: function load(endpoint, urn, user) {
+	        value: function load(endpoints, urn, user) {
 	            var _this2 = this;
 
-	            var promise = endpoint.slice(-5) === '.json' ? require$$0.getJSON(endpoint) : oaQuery(endpoint, urn);
+	            var source = endpoints.read || endpoints.query || "/";
+	            var promise = source.slice(-5) === '.json' ? require$$0.getJSON(source) : oaQuery(source, urn);
 	            // TODO: should be done in its own class, resulting in promise for store, which gets assigned to this.store
 	            return promise.then(function (data) {
 	                return SPARQL.bindingsToInsert(data.results.bindings);
@@ -27627,7 +27629,9 @@
 	        value: function update(triple) {}
 	    }, {
 	        key: 'save',
-	        value: function save(endpoint) {}
+	        value: function save(endpoint) {
+	            var target = endpoint;
+	        }
 	    }, {
 	        key: 'persist',
 	        value: function persist(endpoint) {}
@@ -40431,11 +40435,15 @@
 
 	var expandMap = {
 	    "default": function _default(gspo, graphs) {
-	        var annotation = graphs[gspo.g];
-	        var bond_id = annotation ? undefined : gspo.g + "-bond-" + Utils.hash(JSON.stringify(gspo)).slice(0, 4);
-	        return annotation ? annotation.filter(function (triple) {
+
+	        var annotation = (graphs || {})[gspo.g];
+	        var bindings = annotation ? annotation.filter(function (quad) {
 	            return quad.p.value.endsWith('has-bond') && quad.s.value === gspo.s || quad.p.value.endsWith('type') && quad.o.value === gspo.p || quad.p.value.endsWith('bond-with') && quad.o.value === gspo.o;
-	        }) : [{ g: gspo.g, s: bond_id, p: "http://www.w3.org/1999/02/22-rdf-syntax-ns#type", o: gspo.p }, { g: gspo.g, s: gspo.s, p: "http://data.snapdrgn.net/ontology/snap#has-bond", o: bond_id }, { g: gspo.g, s: bond_id, p: "http://data.snapdrgn.net/ontology/snap#bond-with", o: gspo.o }];
+	        }) : [];
+	        var bond_id = bindings.length % 3 ? gspo.g + "-bond-" + Utils.hash(JSON.stringify(gspo)).slice(0, 4) : undefined; // todo: get bonds and check bond sizes individually
+	        return bond_id ? [{ g: gspo.g, s: bond_id, p: "http://www.w3.org/1999/02/22-rdf-syntax-ns#type", o: gspo.p }, { g: gspo.g, s: gspo.s, p: "http://data.snapdrgn.net/ontology/snap#has-bond", o: bond_id }, { g: gspo.g, s: bond_id, p: "http://data.snapdrgn.net/ontology/snap#bond-with", o: gspo.o }].map(function (gspo) {
+	            return SPARQL.gspoToBinding(gspo);
+	        }) : bindings;
 	    }
 	};
 
@@ -41567,13 +41575,13 @@
 	        }), uT.map(function (i, el) {
 	            return require$$0(el).data('original-subject');
 	        }), uT.map(function (i, el) {
-	            return require$$0(el).data('subject');
-	        }), uT.map(function (i, el) {
 	            return require$$0(el).data('original-predicate');
 	        }), uT.map(function (i, el) {
-	            return require$$0(el).data('predicate');
-	        }), uT.map(function (i, el) {
 	            return require$$0(el).data('original-object');
+	        }), uT.map(function (i, el) {
+	            return require$$0(el).data('subject');
+	        }), uT.map(function (i, el) {
+	            return require$$0(el).data('predicate');
 	        }), uT.map(function (i, el) {
 	            return require$$0(el).data('object');
 	        }));
@@ -41595,7 +41603,6 @@
 	        }));
 	        // todo: add title and motivatedby
 	        // TODO: create title for new annotations in frontend, because it uses ontologies
-	        // TODO: only run execute in create if there is an annotation to create
 	        _$1.assign(selector, { id: cite + "#sel-" + Utils.hash(JSON.stringify(selector)).slice(0, 4) });
 	        var selector_triples = OA.expand(selector.type)(selector);
 	        var create_triples = new_triples.length ? _$1.concat(new_triples, selector_triples) : [];
@@ -41604,17 +41611,21 @@
 
 	        body.html('<span class="spinner"/>');
 
-	        var dropped = annotator.drop(delete_graphs);
-	        var deleted = annotator.delete(_$1.concat(delete_triples, delete_graphs.map(function (id) {
-	            return annotations[id];
-	        })));
-	        annotator.update(update_triples.map(function (t) {
-	            return { g: t[0], s: t[1], p: t[2], o: t[3] };
-	        }), update_triples.map(function (t) {
-	            return { g: t[0], s: t[4], p: t[5], o: t[6] };
-	        }));
-	        annotator.create(cite, create_triples);
-	        // annotator.apply()
+	        annotator.drop(delete_graphs).then(function () {
+	            return annotator.delete(_$1.concat(delete_triples, delete_graphs.map(function (id) {
+	                return annotations[id];
+	            })));
+	        }).then(function () {
+	            return annotator.update(_$1.flatten(update_triples.map(function (t) {
+	                return SNAP.expand()({ g: t[0], s: t[1], p: t[2], o: t[3] }, annotations);
+	            })), _$1.flatten(update_triples.map(function (t) {
+	                return SNAP.expand()({ g: t[0], s: t[4], p: t[5], o: t[6] }, annotations);
+	            })));
+	        }).then(function () {
+	            return annotator.create(cite, create_triples);
+	        }).then(function () {
+	            return annotator.apply();
+	        });
 
 	        // todo: this can be improved; the goal is to take a single step in history
 
@@ -41763,6 +41774,11 @@
 	            }
 	        };
 
+	        this.reset = function () {
+	            _this.unload();
+	            _this.load();
+	        };
+
 	        // var body = $('body');
 	        this.tooltip = new Tooltip(app);
 	        this.delete = new Editor(app);
@@ -41814,7 +41830,7 @@
 	    classCallCheck(this, Annotator);
 
 	    var self = this;
-	    this.defaultGraph = "http://data.perseus.org/graphs/people";
+	    this.defaultGraph = "http://data.perseus.org/graphs/persons";
 	    this.userId = app.anchor.data('user');
 	    this.urn = app.anchor.data('urn');
 	    // TODO: add controls for history, save at bottom of anchor
@@ -41875,6 +41891,12 @@
 	     * @param graphs Object where graphs.triples (Array[Object]) is a list of GSPOs to delete and graphs.ids (Array[String]) is the list of annotation ids to be cleared
 	     */
 	    this.drop = function (graphs) {
+	        _this.model.defaultDataset = _this.model.defaultDataset.filter(function (ds) {
+	            return !graphs.indexOf(ds) + 1;
+	        });
+	        _this.model.namedDataset = _this.model.namedDataset.filter(function (ds) {
+	            return !graphs.indexOf(ds) + 1;
+	        });
 	        return _this.model.execute(graphs.map(function (uri) {
 	            return 'DROP GRAPH <' + uri + '>';
 	        }));
@@ -41904,11 +41926,11 @@
 	            return i.g.value || i.g;
 	        })).map(function (annotationId) {
 	            return [{
-	                "p": { "type": "uri", "value": "oa:annotatedAt" },
+	                "p": { "type": "uri", "value": "http://www.w3.org/ns/oa#annotatedAt" },
 	                "g": { "type": "uri", "value": self.defaultGraph },
 	                "s": { "type": "uri", "value": annotationId }, //
 	                "o": { "datatype": "http://www.w3.org/2001/XMLSchema#dateTimeStamp", "type": "literal", "value": new Date().toISOString() }
-	            }, { "p": { "type": "uri", "value": "oa:annotatedBy" },
+	            }, { "p": { "type": "uri", "value": "http://www.w3.org/ns/oa#annotatedBy" },
 	                "g": { "type": "uri", "value": self.defaultGraph },
 	                "s": { "type": "uri", "value": annotationId },
 	                "o": { "type": "uri", "value": self.userId } }];
@@ -41933,45 +41955,50 @@
 	            var oa = [{
 	                "g": { "type": "uri", "value": self.defaultGraph },
 	                "s": { "type": "uri", "value": annotationId },
-	                "p": { "type": "uri", "value": "rdf:type" },
-	                "o": { "type": "uri", "value": "oa:Annotation" }
+	                "p": { "type": "uri", "value": "http://www.w3.org/1999/02/22-rdf-syntax-ns#type" },
+	                "o": { "type": "uri", "value": "http://www.w3.org/ns/oa#Annotation" }
 	            }, {
 	                "g": { "type": "uri", "value": self.defaultGraph },
 	                "s": { "type": "uri", "value": annotationId },
-	                "p": { "type": "uri", "value": "dcterms:source" },
+	                "p": { "type": "uri", "value": "http://purl.org/dc/terms/source" },
 	                "o": { "type": "uri", "value": "https://github.com/fbaumgardt/perseids-annotator" }
 	            }, {
 	                "g": { "type": "uri", "value": self.defaultGraph },
 	                "s": { "type": "uri", "value": annotationId },
-	                "p": { "type": "uri", "value": "oa:serializedBy" },
+	                "p": { "type": "uri", "value": "http://www.w3.org/ns/oa#serializedBy" },
 	                "o": { "type": "uri", "value": "https://github.com/fbaumgardt/perseids-annotator" }
+	            }, {
+	                "g": { "type": "uri", "value": self.defaultGraph },
+	                "s": { "type": "uri", "value": annotationId },
+	                "p": { "type": "uri", "value": "http://www.w3.org/ns/oa#hasBody" },
+	                "o": { "type": "uri", "value": annotationId }
 	            }];
 
 	            var target = [{
-	                "p": { "type": "uri", "value": "oa:hasTarget" },
+	                "p": { "type": "uri", "value": "http://www.w3.org/ns/oa#hasTarget" },
 	                "g": { "type": "uri", "value": self.defaultGraph },
 	                "s": { "type": "uri", "value": annotationId },
 	                "o": { "type": "uri", "value": targetId }
 	            }, {
-	                "p": { "type": "uri", "value": "rdf:type" },
+	                "p": { "type": "uri", "value": "http://www.w3.org/1999/02/22-rdf-syntax-ns#type" },
 	                "g": { "type": "uri", "value": self.defaultGraph },
 	                "s": { "type": "uri", "value": targetId },
-	                "o": { "type": "uri", "value": "oa:SpecificResource" }
+	                "o": { "type": "uri", "value": "http://www.w3.org/ns/oa#SpecificResource" }
 	            }, // todo: figure out alternatives for non-text targets
 	            {
-	                "p": { "type": "uri", "value": "oa:hasSource" },
+	                "p": { "type": "uri", "value": "http://www.w3.org/ns/oa#hasSource" },
 	                "g": { "type": "uri", "value": self.defaultGraph },
 	                "s": { "type": "uri", "value": targetId },
 	                "o": { "type": "uri", "value": self.urn }
 	            }, {
-	                "p": { "type": "uri", "value": "oa:hasSelector" },
+	                "p": { "type": "uri", "value": "http://www.w3.org/ns/oa#hasSelector" },
 	                "g": { "type": "uri", "value": self.defaultGraph },
 	                "s": { "type": "uri", "value": targetId },
 	                "o": { "type": "uri", "value": selectorId }
 	            }];
 
 	            var date = [{
-	                "p": { "type": "uri", "value": "oa:annotatedAt" },
+	                "p": { "type": "uri", "value": "http://www.w3.org/ns/oa#annotatedAt" },
 	                "g": { "type": "uri", "value": self.defaultGraph },
 	                "s": { "type": "uri", "value": annotationId },
 	                "o": {
@@ -41982,19 +42009,24 @@
 	            }];
 
 	            var user = [{
-	                "p": { "type": "uri", "value": "oa:annotatedBy" },
+	                "p": { "type": "uri", "value": "http://www.w3.org/ns/oa#annotatedBy" },
 	                "g": { "type": "uri", "value": self.defaultGraph },
 	                "s": { "type": "uri", "value": annotationId },
 	                "o": { "type": "uri", "value": self.userId }
 	            } // NOTE: describe <o> query
 	            ];
-
-	            var insert = SPARQL.bindingsToInsert(_.flatten(oa, date, user, target, bindings).map(function (gspo) {
+	            _this.model.defaultDataset.push(annotationId);
+	            _this.model.namedDataset.push(annotationId);
+	            var insert = SPARQL.bindingsToInsert(_.flatten([oa, date, user, target, bindings]).map(function (gspo) {
 	                return gspo.g.value ? gspo : SPARQL.gspoToBinding(gspo);
 	            }));
 	            result = _this.model.execute(insert);
 	        }
 	        return result;
+	    };
+
+	    this.apply = function (promises) {
+	        _this.applicator.reset();
 	    };
 	};
 
@@ -45188,16 +45220,16 @@
 
 	    var self = this;
 	    this.anchor = require$$0(element);
-	    this.model = new Model();
+	    this.model = new Model(self);
 	    // keep this dynamically loaded for now
 	    this.getEndpoint = function () {
-	        return self.anchor.data().sparqlEndpoint;
+	        return { read: self.anchor.data('sparql-select-endpoint'), write: self.anchor.data('sparql-update-endpoint'), query: self.anchor.data('sparql-endpoint') };
 	    };
 	    this.getUrn = function () {
-	        return self.anchor.data().urn;
+	        return self.anchor.data('urn');
 	    };
 	    this.getUser = function () {
-	        return self.anchor.data().user;
+	        return self.anchor.data('user');
 	    };
 
 	    this.initialize = function () {
