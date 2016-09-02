@@ -1,4 +1,4 @@
-var perseids = (function (rdfstore) {
+(function (rdfstore) {
 	rdfstore = 'default' in rdfstore ? rdfstore['default'] : rdfstore;
 
 	var commonjsGlobal = typeof window !== 'undefined' ? window : typeof global !== 'undefined' ? global : typeof self !== 'undefined' ? self : {}
@@ -27444,41 +27444,6 @@ var perseids = (function (rdfstore) {
 	    return sparqlQuery(endpoint, query);
 	};
 
-	var bindings2insert = function bindings2insert(bindings) {
-	    // check head length, decide whether everything goes into default or split for named graphs
-	    // if named graphs,
-	    // groupBy named graphs
-	    var grouped = _$1.groupBy(bindings, function (triple) {
-	        return triple.g.value;
-	    });
-	    // mapped bindings to triples
-	    var mapped = _$1.mapValues(grouped, function (graph) {
-	        return graph.map(function (triple) {
-	            _$1.unset(triple, 'g');
-	            var simple_triple = _$1.mapValues(triple, function (element) {
-	                switch (element.type) {
-	                    case "uri":
-	                        return "<" + element.value + ">";
-	                    case "bnode":
-	                        return "<_:" + element.value + ">";
-	                    case "literal":
-	                        return element.datatype ? "\"" + element.value + "\"^^<" + element.datatype + ">" : "\"" + element.value + "\"";
-	                }
-	            });
-	            return simple_triple.s + " " + simple_triple.p + " " + simple_triple.o + " .";
-	        });
-	    });
-	    // return SPARQL INSERT queries
-	    return _$1.map(_$1.keys(mapped), function (k) {
-	        var graph = k.indexOf(":") + 1 ? k : "_:" + k;
-	        return "INSERT DATA { GRAPH <" + graph + "> {\n" + mapped[k].join("\n") + "\n}}";
-	    });
-	};
-
-	var sparql = {
-	    bindings2insert: bindings2insert
-	};
-
 	var classCallCheck = function (instance, Constructor) {
 	  if (!(instance instanceof Constructor)) {
 	    throw new TypeError("Cannot call a class as a function");
@@ -27503,6 +27468,83 @@ var perseids = (function (rdfstore) {
 	  };
 	}();
 
+	/**
+	 * Mostly utility functions to deal with SPARQL formats and operations
+	 * There are currently 3 formats in use:
+	 * GSPO is a lightweight quad object without data typing,
+	 * bindings are JSON serializations of SPARQL responses -> always keep GSPO notation!
+	 * SPARQL is string serialization for SPARQL STATEMENTS -> use GRAPH keyword!
+	 */
+
+	var SPARQL = function () {
+	    function SPARQL() {
+	        classCallCheck(this, SPARQL);
+	    }
+
+	    createClass(SPARQL, null, [{
+	        key: "gspoToBinding",
+	        value: function gspoToBinding(gspo) {
+	            return _$1.mapValues(gspo, function (prop) {
+	                if (prop.startsWith("http://") || prop.startsWith("http://")) {
+	                    return { type: "uri", value: prop };
+	                } else if (prop.startsWith("_:")) {
+	                    return { type: "bnode", value: prop };
+	                } else {
+	                    // todo: come back and use regex properly
+	                    if (!prop.replace(/\d+/g, '')) {
+	                        return { type: "literal", datatype: "http://www.w3.org/2001/XMLSchema#int", value: prop };
+	                    } else if (prop.replace(/\d+/g, '').startsWith("--T::.")) {
+	                        return { type: "literal", datatype: "http://www.w3.org/2001/XMLSchema#dateTimeStamp", value: prop };
+	                    } else {
+	                        return { type: "literal", value: prop };
+	                    }
+	                }
+	            } /* todo: switch for uri, literal, bnode with a regex (what about hypothesis?)*/);
+	        }
+	    }, {
+	        key: "bindingToGspo",
+	        value: function bindingToGspo(binding) {
+	            return _$1.mapValues(binding, function (prop) {
+	                return prop.value;
+	            });
+	        }
+	    }, {
+	        key: "bindingToSPARQL",
+	        value: function bindingToSPARQL(binding) {
+	            var strings = _$1.mapValues(binding, function (prop) {
+	                switch (prop.token || prop.type) {
+	                    case "uri":
+	                        return "<" + prop.value + ">";
+	                    case "literal":
+	                        return !(prop.datatype || prop.token && prop.type) ? "\"" + prop.value + "\"" : "\"" + prop.value + "\"^^<" + (prop.datatype || prop.type) + ">";
+	                    case "bnode":
+	                        return prop.value.startsWith("_:") ? prop.value : "_:" + prop.value;
+	                }
+	            });
+	            return strings.g ? "GRAPH " + strings.g + " {" + strings.s + " " + strings.p + " " + strings.o + " }" : strings.s + " " + strings.p + " " + strings.o + " .";
+	        }
+	    }, {
+	        key: "bindingsToDelete",
+	        value: function bindingsToDelete(bindings) {
+	            return _$1.chain(bindings).flatten().groupBy('g.value').map(function (v, k) {
+	                return _$1.concat("DELETE DATA { GRAPH <" + k + "> {", v.map(function (quad) {
+	                    return SPARQL.bindingToSPARQL(_$1.omit(quad, 'g'));
+	                }), "}}").join("\n");
+	            }).value();
+	        }
+	    }, {
+	        key: "bindingsToInsert",
+	        value: function bindingsToInsert(bindings) {
+	            return _$1.chain(bindings).flatten().groupBy('g.value').map(function (v, k) {
+	                return _$1.concat("INSERT DATA { GRAPH <" + k + "> {", v.map(function (quad) {
+	                    return SPARQL.bindingToSPARQL(_$1.omit(quad, 'g'));
+	                }), "}}").join("\n");
+	            }).value();
+	        }
+	    }]);
+	    return SPARQL;
+	}();
+
 	var Model = function () {
 	    function Model() {
 	        var _this = this;
@@ -27521,6 +27563,7 @@ var perseids = (function (rdfstore) {
 	         * @returns {*} promise for ordered list
 	         */
 	        this.execute = function (sparql) {
+	            console.log(new Date().getTime());
 	            var data = sparql.constructor === Array ? sparql : [sparql];
 	            var start = require$$0.Deferred();
 	            var seq = _$1.map(data, function (x) {
@@ -27536,8 +27579,7 @@ var perseids = (function (rdfstore) {
 	                return current.deferred.promise();
 	            }, start.promise());
 	            start.resolve([]);
-	            seq.slice;
-	            return _$1.last(seq).deferred.promise();
+	            return (_$1.last(seq) || { deferred: require$$0.Deferred().resolve([]) }).deferred.promise();
 	        };
 	        this.reset = function () {
 	            var outer = require$$0.Deferred();
@@ -27569,7 +27611,7 @@ var perseids = (function (rdfstore) {
 	            var promise = endpoint.slice(-5) === '.json' ? require$$0.getJSON(endpoint) : oaQuery(endpoint, urn);
 	            // TODO: should be done in its own class, resulting in promise for store, which gets assigned to this.store
 	            return promise.then(function (data) {
-	                return sparql.bindings2insert(data.results.bindings);
+	                return SPARQL.bindingsToInsert(data.results.bindings);
 	            }).then(function (data) {
 	                _this2.upstream = data;
 	                return _this2.reset();
@@ -27598,20 +27640,10 @@ var perseids = (function (rdfstore) {
 	    return Model;
 	}();
 
-	/**
-	 * SPARQL Queries to retrieve
-	 * @type {{[http://www.w3.org/ns/oa#TextQuoteSelector]: ((p1?:*)=>string)}}
-	 */
-
-	var Selectors = {
-	    "http://www.w3.org/ns/oa#TextQuoteSelector": function httpWwwW3OrgNsOaTextQuoteSelector(id) {
-	        return ["SELECT ?id ?prefix ?exact ?suffix", "WHERE {", "GRAPH ?g {", (id || "?id") + " <http://www.w3.org/ns/oa#hasTarget> ?target .", "?target <http://www.w3.org/ns/oa#hasSelector> ?selector .", "?selector <http://www.w3.org/ns/oa#prefix> ?prefix .", "?selector <http://www.w3.org/ns/oa#exact> ?exact .", "?selector <http://www.w3.org/ns/oa#suffix> ?suffix .", "}}"].join("\n");
-	    }
-	};
-
-	var Graph = {
-	    "http://www.w3.org/ns/oa#hasBody": function httpWwwW3OrgNsOaHasBody(id) {
-	        return ["SELECT ?id ?subject ?predicate ?object ?graph", "WHERE {", "GRAPH ?g {?id <http://www.w3.org/ns/oa#hasBody> ?graph } .", "GRAPH ?graph {?subject ?predicate ?object}", "}"].join("\n");
+	var Annotation = {
+	    "byIdentifier": function byIdentifier(id) {
+	        var id_phrase = id ? "BIND(<" + id + "> AS ?id)" : "?id rdf:type oa:Annotation .";
+	        return ["PREFIX oa: <http://www.w3.org/ns/oa#>", "PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>", "SELECT DISTINCT ?id ?g ?s ?p ?o", "WHERE {", id_phrase, "{", "?id oa:hasTarget ?s .", "GRAPH ?g {?s ?p ?o}", "}", "UNION", "{", "?id oa:hasTarget/oa:hasSelector ?s .", "GRAPH ?g {?s ?p ?o}", "}", "UNION", "{", "?id oa:hasBody ?g .", "GRAPH ?g {?s ?p ?o}", "}", "UNION", "{", "?id oa:hasTarget ?t .", "?s oa:hasTarget ?t .", "GRAPH ?g {?s ?p ?o}", "}", "}"].join("\n");
 	    }
 	};
 
@@ -40051,11 +40083,12 @@ var perseids = (function (rdfstore) {
 
 	var d3$1 = (d3 && typeof d3 === 'object' && 'default' in d3 ? d3['default'] : d3);
 
-	var NodeLink = function NodeLink(body) {
+	var NodeLink = function NodeLink(app) {
 	    var _this = this;
 
 	    classCallCheck(this, NodeLink);
 
+	    var body = app.anchor;
 	    var self = this;
 	    var globalViewBtn = require$$0('<div class="btn btn-circle" id="global-view-btn" style="position: fixed; top:15%; right:5%; z-index:1000; background-color:black;"/>');
 	    var globalView = require$$0('<div class="well" id="global-view" style="position:fixed; top:10%; left:12.5%; width:75%; height:40%; z-index:1000; display:none;"/>');
@@ -40246,50 +40279,379 @@ var perseids = (function (rdfstore) {
 	    this.force.start();
 	};
 
-	var Tooltip = function Tooltip(jqParent) {
+	var Utils = function () {
+	    function Utils() {
+	        classCallCheck(this, Utils);
+	    }
+
+	    createClass(Utils, null, [{
+	        key: "md5_to64",
+
+	        /*
+	         Copyright (C) 2007, 2008  Alina Friedrichsen <x-alina@gmx.net>
+	          Redistribution and use in source and binary forms, with or without
+	         modification, are permitted provided that the following conditions
+	         are met:
+	         1. Redistributions of source code must retain the above copyright
+	         notice, this list of conditions and the following disclaimer.
+	         2. Redistributions in binary form must reproduce the above copyright
+	         notice, this list of conditions and the following disclaimer in the
+	         documentation and/or other materials provided with the distribution.
+	          THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
+	         ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+	         IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+	         ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
+	         FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+	         DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+	         OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+	         HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+	         LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+	         OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+	         SUCH DAMAGE.
+	         */
+
+	        /*
+	         The md5_crypt() function was ported to JavaScript from FreeBSD's libcrypt
+	         and contains this license:
+	         "THE BEER-WARE LICENSE" (Revision 42):
+	         <phk@login.dknet.dk> wrote this file.  As long as you retain this notice you
+	         can do whatever you want with this stuff. If we meet some day, and you think
+	         this stuff is worth it, you can buy me a beer in return.   Poul-Henning Kamp
+	         */
+	        value: function md5_to64(value, n) {
+	            if (typeof VarType != "undefined") {
+	                value = VarType.toUInt(value);
+	                n = VarType.toUInt(n);
+	            }
+
+	            var itoa64 = "./0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+
+	            var str = "";
+	            while (--n >= 0) {
+	                str += itoa64.charAt(value & 0x3f);
+	                value = value >> 6;
+	            }
+
+	            return str;
+	        }
+	    }, {
+	        key: "md5_crypt",
+	        value: function md5_crypt(key, salt) {
+	            if (typeof VarType != "undefined") {
+	                key = VarType.toStr(key);
+	                salt = VarType.toStr(salt);
+	            }
+
+	            var old_b64pad = b64pad;
+	            b64pad = "";
+	            var old_chrsz = chrsz;
+	            chrsz = 8;
+
+	            var magic = "$1$";
+
+	            if (salt.substr(0, magic.length) == magic) {
+	                salt = salt.substr(magic.length);
+	            }
+
+	            var i = salt.indexOf("$");
+	            if (i < 0 || i > 8) i = 8;
+	            salt = salt.substr(0, i);
+
+	            var str = key + magic + salt;
+	            var hash = str_md5(key + salt + key);
+
+	            for (var i = key.length; i > 0; i -= 16) {
+	                if (i >= 16) {
+	                    str += hash;
+	                } else {
+	                    str += hash.substr(0, i);
+	                }
+	            }
+
+	            for (var i = key.length; i != 0; i = i >> 1) {
+	                if ((i & 1) != 0) {
+	                    str += String.fromCharCode(0x00);
+	                } else {
+	                    str += key.charAt(0);
+	                }
+	            }
+
+	            var passwd = magic + salt + "$";
+
+	            hash = str_md5(str);
+	            for (i = 0; i < 1000; i++) {
+	                str = "";
+	                if ((i & 1) != 0) str += key;else str += hash;
+
+	                if (i % 3 != 0) str += salt;
+	                if (i % 7 != 0) str += key;
+
+	                if ((i & 1) != 0) str += hash;else str += key;
+
+	                hash = str_md5(str);
+	            }
+
+	            hash += hash.charAt(5);
+	            var value;
+	            for (var i = 0; i < 5; i++) {
+	                value = hash.charCodeAt(i) << 16 | hash.charCodeAt(i + 6) << 8 | hash.charCodeAt(i + 12);
+	                passwd += this.md5_to64(value, 4);
+	            }
+	            value = hash.charCodeAt(11);
+	            passwd += this.md5_to64(value, 2);
+
+	            b64pad = old_b64pad;
+	            chrsz = old_chrsz;
+
+	            return passwd;
+	        }
+	    }, {
+	        key: "hash",
+	        value: function hash(str) {
+	            return str.split("").reduce(function (a, b) {
+	                a = (a << 5) - a + b.charCodeAt(0);return a & a;
+	            }, 0).toString(16).replace("-", "0");
+	        }
+	    }, {
+	        key: "cite",
+	        value: function cite(pre, post) {
+	            return "http://data.perseus.org/collections/urn:cite:perseus:pdljann." + this.hash(pre) + this.hash(post);
+	        }
+	    }]);
+	    return Utils;
+	}();
+
+	var namespaces = [{
+	    prefix: "snap:",
+	    uri: "http://data.snapdrgn.net/ontology/snap#"
+	}, {
+	    prefix: "perseusrdf:",
+	    uri: "http://data.perseus.org/"
+	}];
+
+	var expandMap = {
+	    "default": function _default(gspo, graphs) {
+	        var annotation = graphs[gspo.g];
+	        var bond_id = annotation ? undefined : gspo.g + "-bond-" + Utils.hash(JSON.stringify(gspo)).slice(0, 4);
+	        return annotation ? annotation.filter(function (triple) {
+	            return quad.p.value.endsWith('has-bond') && quad.s.value === gspo.s || quad.p.value.endsWith('type') && quad.o.value === gspo.p || quad.p.value.endsWith('bond-with') && quad.o.value === gspo.o;
+	        }) : [{ g: gspo.g, s: bond_id, p: "http://www.w3.org/1999/02/22-rdf-syntax-ns#type", o: gspo.p }, { g: gspo.g, s: gspo.s, p: "http://data.snapdrgn.net/ontology/snap#has-bond", o: bond_id }, { g: gspo.g, s: bond_id, p: "http://data.snapdrgn.net/ontology/snap#bond-with", o: gspo.o }];
+	    }
+	};
+
+	var simplifyMap = {
+	    "default": function _default(obj) {
+	        return _$1.mapValues(obj, function (v, k) {
+	            var bonds = v.filter(function (o) {
+	                return o.p.value === "http://www.w3.org/1999/02/22-rdf-syntax-ns#type" && _$1.reduce(namespaces, function (acc, ns) {
+	                    return acc || o.o.value.startsWith(ns.prefix) || o.o.value.startsWith(ns.uri);
+	                }, false);
+	            }).map(function (o) {
+	                return o.s.value;
+	            });
+
+	            var expressions = bonds.map(function (bond) {
+	                var subject = _$1.find(v, function (o) {
+	                    return o.p.value.endsWith("has-bond") && o.o.value === bond;
+	                }).s.value;
+	                var predicate = _$1.find(v, function (o) {
+	                    return o.p.value === "http://www.w3.org/1999/02/22-rdf-syntax-ns#type" && o.s.value === bond;
+	                }).o.value;
+	                var object = _$1.find(v, function (o) {
+	                    return o.p.value.endsWith("bond-with") && o.s.value === bond;
+	                }).o.value;
+
+	                return { s: subject, p: predicate, o: object };
+	            });
+	            return expressions;
+	        });
+	    }
+	};
+
+	var SNAP = function () {
+	    function SNAP() {
+	        classCallCheck(this, SNAP);
+	    }
+
+	    createClass(SNAP, null, [{
+	        key: 'labels',
+	        value: function labels(resource) {
+	            var map = {
+	                "http://data.snapdrgn.net/ontology/snap#AcknowledgedFamilyRelationship": "Has Acknowledged Family Relationship With",
+	                "http://data.snapdrgn.net/ontology/snap#AdoptedFamilyRelationship": "Has Adopted Family Relationship With",
+	                "http://data.snapdrgn.net/ontology/snap#AllianceWith": "Has Alliance With",
+	                "http://data.snapdrgn.net/ontology/snap#AncestorOf": "Is Ancestor Of",
+	                "http://data.snapdrgn.net/ontology/snap#AuntOf": "Is Aunt Of",
+	                "http://data.snapdrgn.net/ontology/snap#Bond": "Has Bond With",
+	                "http://data.snapdrgn.net/ontology/snap#BrotherOf": "Is Brother Of",
+	                "http://data.snapdrgn.net/ontology/snap#CasualIntimateRelationshipWith": "Has Casual Intimate Relationship With",
+	                "http://data.snapdrgn.net/ontology/snap#ChildOf": "Is Child Of",
+	                "http://data.snapdrgn.net/ontology/snap#ChildOfSiblingOf": "Is ChildOfSibling Of",
+	                "http://data.snapdrgn.net/ontology/snap#ClaimedFamilyRelationship": "Has Claimed Family Relationship With",
+	                "http://data.snapdrgn.net/ontology/snap#CousinOf": "Is Cousin Of",
+	                "http://data.snapdrgn.net/ontology/snap#DaughterOf": "Is Daughter Of",
+	                "http://data.snapdrgn.net/ontology/snap#DescendentOf": "Is Descendent Of",
+	                "http://data.snapdrgn.net/ontology/snap#EmnityFor": "Has Emnity For",
+	                "http://data.snapdrgn.net/ontology/snap#ExtendedFamilyOf": "Is Extended Family Of",
+	                "http://data.snapdrgn.net/ontology/snap#ExtendedHouseholdOf": "Is Extended Household Of",
+	                "http://data.snapdrgn.net/ontology/snap#FamilyOf": "Is Family Of",
+	                "http://data.snapdrgn.net/ontology/snap#FatherOf": "Is Father Of",
+	                "http://data.snapdrgn.net/ontology/snap#FosterFamilyRelationship": "Has Foster Family Relationship With",
+	                "http://data.snapdrgn.net/ontology/snap#FreedSlaveOf": "Is Freed Slave Of",
+	                "http://data.snapdrgn.net/ontology/snap#FreedmanOf": "Is Freedman Of",
+	                "http://data.snapdrgn.net/ontology/snap#FreedwomanOf": "Is Freedwoman Of",
+	                "http://data.snapdrgn.net/ontology/snap#FriendshipFor": "Has Friendship For",
+	                "http://data.snapdrgn.net/ontology/snap#GrandchildOf": "Is Grandchild Of",
+	                "http://data.snapdrgn.net/ontology/snap#GranddaughterOf": "Is Granddaughter Of",
+	                "http://data.snapdrgn.net/ontology/snap#GrandfatherOf": "Is Grandfather Of",
+	                "http://data.snapdrgn.net/ontology/snap#GrandmotherOf": "Is Grandmother Of",
+	                "http://data.snapdrgn.net/ontology/snap#GrandparentOf": "Is Grandparent Of",
+	                "http://data.snapdrgn.net/ontology/snap#GrandsonOf": "Is Grandson Of",
+	                "http://data.snapdrgn.net/ontology/snap#GreatGrandfatherOf": "Is GreatGrandfather Of",
+	                "http://data.snapdrgn.net/ontology/snap#GreatGrandmotherOf": "Is GreatGrandmother Of",
+	                "http://data.snapdrgn.net/ontology/snap#GreatGrandparentOf": "Is GreatGrandparent Of",
+	                "http://data.snapdrgn.net/ontology/snap#HalfFamilyRelationship": "HalfFamilyRelationship",
+	                "http://data.snapdrgn.net/ontology/snap#HereditaryFamilyOf": "Is HereditaryFamily Of",
+	                "http://data.snapdrgn.net/ontology/snap#HouseSlaveOf": "Is HouseSlave Of",
+	                "http://data.snapdrgn.net/ontology/snap#HouseholdOf": "Is Household Of",
+	                "http://data.snapdrgn.net/ontology/snap#InLawFamilyRelationship": "Has In-Law Family Relationship With",
+	                "http://data.snapdrgn.net/ontology/snap#IntimateRelationshipWith": "Has Intimate Relationship With",
+	                "http://data.snapdrgn.net/ontology/snap#KinOf": "Is Kin Of",
+	                "http://data.snapdrgn.net/ontology/snap#LegallyRecognisedRelationshipWith": "Has Legally Recognised Relationship With",
+	                "http://data.snapdrgn.net/ontology/snap#Link": "Has Link With",
+	                "http://data.snapdrgn.net/ontology/snap#MaternalFamilyRelationship": "Has Maternal Family Relationship With",
+	                "http://data.snapdrgn.net/ontology/snap#MotherOf": "Is Mother Of",
+	                "http://data.snapdrgn.net/ontology/snap#NephewOf": "Is Nephew Of",
+	                "http://data.snapdrgn.net/ontology/snap#NieceOf": "Is Niece Of",
+	                "http://data.snapdrgn.net/ontology/snap#ParentOf": "Is Parent Of",
+	                "http://data.snapdrgn.net/ontology/snap#PaternalFamilyRelationship": "Has Paternal Family Relationship With",
+	                "http://data.snapdrgn.net/ontology/snap#ProfessionalRelationship": "Has Professional Relationship With",
+	                "http://data.snapdrgn.net/ontology/snap#QualifierRelationship": "Has Qualifier Relationship With",
+	                "http://data.snapdrgn.net/ontology/snap#SeriousIntimateRelationshipWith": "Has Serious Intimate Relationship With",
+	                "http://data.snapdrgn.net/ontology/snap#SiblingOf": "Is Sibling Of",
+	                "http://data.snapdrgn.net/ontology/snap#SiblingOfParentOf": "Is SiblingOfParent Of",
+	                "http://data.snapdrgn.net/ontology/snap#SisterOf": "Is Sister Of",
+	                "http://data.snapdrgn.net/ontology/snap#SlaveOf": "Is Slave Of",
+	                "http://data.snapdrgn.net/ontology/snap#SonOf": "Is Son Of",
+	                "http://data.snapdrgn.net/ontology/snap#StepFamilyRelationship": "Has Step Family Relationship With",
+	                "http://data.snapdrgn.net/ontology/snap#UncleOf": "Is Uncle Of"
+	            };
+	            return map[resource];
+	        }
+
+	        // todo: move labels into var
+
+	    }, {
+	        key: 'expand',
+	        value: function expand(type) {
+	            return expandMap[type] || expandMap.default;
+	        }
+	    }, {
+	        key: 'simplify',
+	        value: function simplify(type) {
+	            return simplifyMap[type] || simplifyMap.default;
+	        }
+	    }, {
+	        key: 'label',
+	        value: function label(uri) {
+	            var term = _$1.reduce(namespaces, function (str, ns) {
+	                return str.replace(new RegExp("^" + ns.uri), "").replace(new RegExp("^" + ns.prefix));
+	            }, uri);
+	            var labels = {
+	                "EnemyOf": "Is Enemy Of",
+	                "CompanionOf": "Is Companion Of",
+	                "WifeOf": "Is Wife Of",
+	                "HusbandOf": "Is Husband Of",
+	                "AcknowledgedFamilyRelationship": "Has Acknowledged Family Relationship With",
+	                "AdoptedFamilyRelationship": "Has Adopted Family Relationship With",
+	                "AllianceWith": "Has Alliance With",
+	                "AncestorOf": "Is Ancestor Of",
+	                "AuntOf": "Is Aunt Of",
+	                "Bond": "Has Bond With",
+	                "BrotherOf": "Is Brother Of",
+	                "CasualIntimateRelationshipWith": "Has Casual Intimate Relationship With",
+	                "ChildOf": "Is Child Of",
+	                "ChildOfSiblingOf": "Is ChildOfSibling Of",
+	                "ClaimedFamilyRelationship": "Has Claimed Family Relationship With",
+	                "CousinOf": "Is Cousin Of",
+	                "DaughterOf": "Is Daughter Of",
+	                "DescendentOf": "Is Descendent Of",
+	                "EmnityFor": "Has Emnity For",
+	                "ExtendedFamilyOf": "Is Extended Family Of",
+	                "ExtendedHouseholdOf": "Is Extended Household Of",
+	                "FamilyOf": "Is Family Of",
+	                "FatherOf": "Is Father Of",
+	                "FosterFamilyRelationship": "Has Foster Family Relationship With",
+	                "FreedSlaveOf": "Is Freed Slave Of",
+	                "FreedmanOf": "Is Freedman Of",
+	                "FreedwomanOf": "Is Freedwoman Of",
+	                "FriendshipFor": "Has Friendship For",
+	                "GrandchildOf": "Is Grandchild Of",
+	                "GranddaughterOf": "Is Granddaughter Of",
+	                "GrandfatherOf": "Is Grandfather Of",
+	                "GrandmotherOf": "Is Grandmother Of",
+	                "GrandparentOf": "Is Grandparent Of",
+	                "GrandsonOf": "Is Grandson Of",
+	                "GreatGrandfatherOf": "Is GreatGrandfather Of",
+	                "GreatGrandmotherOf": "Is GreatGrandmother Of",
+	                "GreatGrandparentOf": "Is GreatGrandparent Of",
+	                "HalfFamilyRelationship": "HalfFamilyRelationship",
+	                "HereditaryFamilyOf": "Is HereditaryFamily Of",
+	                "HouseSlaveOf": "Is HouseSlave Of",
+	                "HouseholdOf": "Is Household Of",
+	                "InLawFamilyRelationship": "Has In-Law Family Relationship With",
+	                "IntimateRelationshipWith": "Has Intimate Relationship With",
+	                "KinOf": "Is Kin Of",
+	                "LegallyRecognisedRelationshipWith": "Has Legally Recognised Relationship With",
+	                "Link": "Has Link With",
+	                "MaternalFamilyRelationship": "Has Maternal Family Relationship With",
+	                "MotherOf": "Is Mother Of",
+	                "NephewOf": "Is Nephew Of",
+	                "NieceOf": "Is Niece Of",
+	                "ParentOf": "Is Parent Of",
+	                "PaternalFamilyRelationship": "Has Paternal Family Relationship With",
+	                "ProfessionalRelationship": "Has Professional Relationship With",
+	                "QualifierRelationship": "Has Qualifier Relationship With",
+	                "SeriousIntimateRelationshipWith": "Has Serious Intimate Relationship With",
+	                "SiblingOf": "Is Sibling Of",
+	                "SiblingOfParentOf": "Is SiblingOfParent Of",
+	                "SisterOf": "Is Sister Of",
+	                "SlaveOf": "Is Slave Of",
+	                "SonOf": "Is Son Of",
+	                "StepFamilyRelationship": "Has Step Family Relationship With",
+	                "UncleOf": "Is Uncle Of"
+	            };
+
+	            var uri = uri.startsWith("http://data.perseus.org/people/") ? uri.replace("http://data.perseus.org/people/", '').replace('#this', '') : uri;
+
+	            return labels[term] || uri;
+	        }
+	    }]);
+	    return SNAP;
+	}();
+
+	var Tooltip = function Tooltip(app) {
 	    classCallCheck(this, Tooltip);
 
+	    var jqParent = app.anchor;
 	    jqParent.append($('<div class="margintooltip" style="display: none;"></div>'));
 	    this.register = function (jqElement) {
 	        jqElement.hover(function (e) {
+	            // todo: stringify should check ontology and select simplifier or stringify raw (.value)
 	            function stringify(obj) {
-	                return _.values(_.mapValues(obj, function (v, k) {
-	                    var bonds = v.filter(function (o) {
-	                        return o.p === "http://www.w3.org/1999/02/22-rdf-syntax-ns#type" && o.s.startsWith(k);
-	                    }).map(function (o) {
-	                        return o.s;
-	                    });
-	                    var expressions = bonds.map(function (bond) {
-	                        var subject = v.filter(function (o) {
-	                            return o.p.endsWith("has-bond") && o.o === bond;
-	                        }).map(function (o) {
-	                            return o.s;
-	                        })[0];
-	                        var predicate = v.filter(function (o) {
-	                            return o.p === "http://www.w3.org/1999/02/22-rdf-syntax-ns#type" && o.s === bond;
-	                        }).map(function (o) {
-	                            return o.o;
-	                        })[0];
-	                        var object = v.filter(function (o) {
-	                            return o.p.endsWith("bond-with") && o.s === bond;
-	                        }).map(function (o) {
-	                            return o.o;
-	                        })[0];
-	                        return subject.split("\/").slice(-1)[0] + "\n" + predicate + "\n" + object.split("\/").slice(-1)[0];
-	                    });
-	                    return expressions.join(";\n");
-	                })).join("\n\n");
+	                var simplified = SNAP.simplify()(obj);
+	                return _.flatten(_.values(simplified)).map(function (o) {
+	                    return SNAP.label(o.s) + ";\n" + SNAP.label(o.p) + ";\n" + SNAP.label(o.o);
+	                }).join("\n\n");
 	            }
-	            var graphs = _.pickBy($(this).data(), function (v, k) {
-	                return k.startsWith('http://');
-	            });
+	            var graphs = $(this).data('annotations');
 	            var description = stringify(graphs); //attr(field)
 	            var tooltip = $('.margintooltip');
 
 	            var menuState = document.documentElement.clientWidth - parseInt($("#menu-container").css('width'));
-	            var deltaH = menuState ? 0 : parseInt($("#menu-container").css('height'));
-	            var deltaW = menuState ? parseInt($("#menu-container").css('width')) : 0;
-
+	            var deltaH = 0; // menuState ? 0 : parseInt($("#menu-container").css('height'));
+	            var deltaW = 0; // menuState ? parseInt($("#menu-container").css('width')) : 0;
+	            // todo: possibly factor out layout calculations into Utils or somewhere else?
 	            var parent = $(this.parentElement);
 	            var position = parent.position();
 	            var width = Math.min(100, position.left);
@@ -40929,119 +41291,6 @@ var perseids = (function (rdfstore) {
 
 	var Mustache = (mustache && typeof mustache === 'object' && 'default' in mustache ? mustache['default'] : mustache);
 
-	var namespaces = {
-	    snap: {
-	        prefix: "snap:",
-	        uri: "http://data.snapdrgn.net/ontology/snap#"
-	    },
-	    perseus: {
-	        prefix: "perseusrdf:",
-	        uri: "http://data.perseus.org/"
-	    }
-	};
-
-	var SNAP = {
-	    expand: function expand(obj) {},
-	    simplify: function simplify(obj) {
-	        return _.mapValues(obj, function (v, k) {
-	            var bonds = v.filter(function (o) {
-	                return o.p === "http://www.w3.org/1999/02/22-rdf-syntax-ns#type" && (o.o.startsWith(namespaces.snap.prefix) || o.o.startsWith(namespaces.snap.uri) || o.o.startsWith(namespaces.perseus.prefix) || o.o.startsWith(namespaces.perseus.uri));
-	            }).map(function (o) {
-	                return o.s;
-	            });
-
-	            var expressions = bonds.map(function (bond) {
-	                var subject = v.filter(function (o) {
-	                    return o.p.endsWith("has-bond") && o.o === bond;
-	                }).map(function (o) {
-	                    return o.s;
-	                })[0];
-	                var predicate = v.filter(function (o) {
-	                    return o.p === "http://www.w3.org/1999/02/22-rdf-syntax-ns#type" && o.s === bond;
-	                }).map(function (o) {
-	                    return o.o;
-	                })[0];
-	                var object = v.filter(function (o) {
-	                    return o.p.endsWith("bond-with") && o.s === bond;
-	                }).map(function (o) {
-	                    return o.o;
-	                })[0];
-	                return { s: subject, p: predicate, o: object };
-	            });
-	            return expressions;
-	        });
-	    },
-	    label: function label(uri) {
-	        var term = uri.replace(namespaces.snap.uri, '').replace(namespaces.snap.prefix, '').replace(namespaces.perseus.uri, '').replace(namespaces.perseus.prefix, '');
-	        var labels = {
-	            "EnemyOf": "Is Enemy Of",
-	            "CompanionOf": "Is Companion Of",
-	            "WifeOf": "Is Wife Of",
-	            "HusbandOf": "Is Husband Of",
-	            "AcknowledgedFamilyRelationship": "Has Acknowledged Family Relationship With",
-	            "AdoptedFamilyRelationship": "Has Adopted Family Relationship With",
-	            "AllianceWith": "Has Alliance With",
-	            "AncestorOf": "Is Ancestor Of",
-	            "AuntOf": "Is Aunt Of",
-	            "Bond": "Has Bond With",
-	            "BrotherOf": "Is Brother Of",
-	            "CasualIntimateRelationshipWith": "Has Casual Intimate Relationship With",
-	            "ChildOf": "Is Child Of",
-	            "ChildOfSiblingOf": "Is ChildOfSibling Of",
-	            "ClaimedFamilyRelationship": "Has Claimed Family Relationship With",
-	            "CousinOf": "Is Cousin Of",
-	            "DaughterOf": "Is Daughter Of",
-	            "DescendentOf": "Is Descendent Of",
-	            "EmnityFor": "Has Emnity For",
-	            "ExtendedFamilyOf": "Is Extended Family Of",
-	            "ExtendedHouseholdOf": "Is Extended Household Of",
-	            "FamilyOf": "Is Family Of",
-	            "FatherOf": "Is Father Of",
-	            "FosterFamilyRelationship": "Has Foster Family Relationship With",
-	            "FreedSlaveOf": "Is Freed Slave Of",
-	            "FreedmanOf": "Is Freedman Of",
-	            "FreedwomanOf": "Is Freedwoman Of",
-	            "FriendshipFor": "Has Friendship For",
-	            "GrandchildOf": "Is Grandchild Of",
-	            "GranddaughterOf": "Is Granddaughter Of",
-	            "GrandfatherOf": "Is Grandfather Of",
-	            "GrandmotherOf": "Is Grandmother Of",
-	            "GrandparentOf": "Is Grandparent Of",
-	            "GrandsonOf": "Is Grandson Of",
-	            "GreatGrandfatherOf": "Is GreatGrandfather Of",
-	            "GreatGrandmotherOf": "Is GreatGrandmother Of",
-	            "GreatGrandparentOf": "Is GreatGrandparent Of",
-	            "HalfFamilyRelationship": "HalfFamilyRelationship",
-	            "HereditaryFamilyOf": "Is HereditaryFamily Of",
-	            "HouseSlaveOf": "Is HouseSlave Of",
-	            "HouseholdOf": "Is Household Of",
-	            "InLawFamilyRelationship": "Has In-Law Family Relationship With",
-	            "IntimateRelationshipWith": "Has Intimate Relationship With",
-	            "KinOf": "Is Kin Of",
-	            "LegallyRecognisedRelationshipWith": "Has Legally Recognised Relationship With",
-	            "Link": "Has Link With",
-	            "MaternalFamilyRelationship": "Has Maternal Family Relationship With",
-	            "MotherOf": "Is Mother Of",
-	            "NephewOf": "Is Nephew Of",
-	            "NieceOf": "Is Niece Of",
-	            "ParentOf": "Is Parent Of",
-	            "PaternalFamilyRelationship": "Has Paternal Family Relationship With",
-	            "ProfessionalRelationship": "Has Professional Relationship With",
-	            "QualifierRelationship": "Has Qualifier Relationship With",
-	            "SeriousIntimateRelationshipWith": "Has Serious Intimate Relationship With",
-	            "SiblingOf": "Is Sibling Of",
-	            "SiblingOfParentOf": "Is SiblingOfParent Of",
-	            "SisterOf": "Is Sister Of",
-	            "SlaveOf": "Is Slave Of",
-	            "SonOf": "Is Son Of",
-	            "StepFamilyRelationship": "Has Step Family Relationship With",
-	            "UncleOf": "Is Uncle Of"
-	        };
-	        return labels[term] || uri;
-	    },
-	    namespaces: namespaces
-	};
-
 	/**
 	 * Class for the Editor interface
 	 */
@@ -41092,16 +41341,16 @@ var perseids = (function (rdfstore) {
 	            };
 	        } };
 	    this.partials = {
-	        triple: '\n                        <div class="triple" title="Graph:{{g}} Subject:{{s}} Predicate:{{p}} Object:{{o}}" data-subject="{{s}}" data-predicate="{{p}}" data-object="{{o}}">\n                          <div class="content component" style="height:80px;">\n                              <div class="display component" style="height:40px;">\n                                  <div class="sentence component" style="overflow:scroll; white-space:nowrap; padding: 9px; background-color:white; z-index:1 text-align: center;">\n                                      <a href="#" class="object down" title="Change object">{{#label}}{{o}}{{/label}}</a>\n                                      <a href="#" class="predicate down" title="Change predicate">{{#label}}{{p}}{{/label}}</a>\n                                      <a href="#" class="subject down" title="Change subject">{{#label}}{{s}}{{/label}}</a>\n                                  </div>\n                                  <div class="delete component"><span class="glyphicon glyphicon-minus-sign" style="color:white;"></span></div>\n                              </div>\n                              <div class="edit component" style="top:40px; height:40px;">\n                                  <div class="accept up component"><span class="glyphicon glyphicon-ok" style="color:white;"></span></div>\n                                  <input class="component" type="text" placeholder="Search...">\n                                  <div class="discard up component"><span class="glyphicon glyphicon-remove"></span></div>\n                              </div>\n                          </div>\n                        </div>\n                      ',
+	        triple: '\n                        <div class="triple" title="Graph:{{g}} Subject:{{s}} Predicate:{{p}} Object:{{o}}" data-original-subject="{{s}}" data-original-predicate="{{p}}" data-original-object="{{o}}" data-subject="{{s}}" data-predicate="{{p}}" data-object="{{o}}">\n                          <div class="content component" style="height:80px;">\n                              <div class="display component" style="height:40px;">\n                                  <div class="sentence component" style="overflow:scroll; white-space:nowrap; padding: 9px; background-color:white; z-index:1 text-align: center;">\n                                      <a href="#" class="object down" title="Change object" data-token="object">{{#label}}{{o}}{{/label}}</a>\n                                      <a href="#" class="predicate down" title="Change predicate" data-token="predicate">{{#label}}{{p}}{{/label}}</a>\n                                      <a href="#" class="subject down" title="Change subject" data-token="subject">{{#label}}{{s}}{{/label}}</a>\n                                  </div>\n                                  <div class="btn-delete component"><span class="glyphicon glyphicon-minus-sign" style="color:white;"></span></div>\n                              </div>\n                              <div class="edit component" style="top:40px; height:40px;">\n                                  <div class="btn-accept up component"><span class="glyphicon glyphicon-ok" style="color:white;"></span></div>\n                                  <input class="component" type="text" placeholder="Search...">\n                                  <div class="btn-discard up component"><span class="glyphicon glyphicon-remove"></span></div>\n                              </div>\n                          </div>\n                        </div>\n                      ',
 	        graph: '<div class="graph old" data-graph="{{g}}">{{#triples}}{{> triple}}{{/triples}}</div>',
 	        graphs: '{{#annotations}}{{> graph}}{{/annotations}}',
 	        // done: add empty graph container to create template and add new triples to it.
 	        new: '<div class="graph new"/><div style="text-align: center; z-index:5;"><div id="new_button" class="btn btn-circle" style="background-color: #4AA02C; color: white; font-size: 1em; cursor: pointer;">+</div></div>',
-	        anchor: '<div class=\'anchor component\'><span class="prefix selector">{{selector.prefix}}</span><span class="exact selector">{{selector.exact}}</span><span class="suffix selector">{{selector.suffix}}</span></div>'
+	        anchor: '<div class=\'anchor\'><span class="prefix selector">{{selector.prefix}}</span><span class="exact selector">{{selector.exact}}</span><span class="suffix selector">{{selector.suffix}}</span></div>'
 	    }; // todo: add selector and display anchor
 
 	    this.init = function (jqElement, data) {
-	        jqElement.html(Mustache.render("{{> graphs}}{{> new}}", Object.assign({}, data, self.view), self.partials));
+	        jqElement.html(Mustache.render("{{> graphs}}{{> new}}{{> anchor}}", Object.assign({}, data, self.view), self.partials));
 
 	        function activate(el) {
 	            el.find('.triple').hover(function (e) {
@@ -41118,32 +41367,32 @@ var perseids = (function (rdfstore) {
 	            el.find('.up').click(function (e) {
 	                require$$0(e.target).closest('.content').animate({ 'top': '0px' }, { duration: 400 });
 	            });
-	            el.find('div.delete').click(function (e) {
-	                // todo: command list -> does the command list exist in the class or as data-attributes
+	            el.find('div.btn-delete').click(function (e) {
+	                // done: command list -> does the command list exist in the class or as data-attributes
 	                // note: no command list, just marked ui elements
-	                // todo: add to command list = if (graph.length = 1) delete graph else delete triple
-	                // todo: if graph.length=1 remove/hide surrounding graph element (except if .new)
+	                // done: add to command list = if (graph.length = 1) delete graph else delete triple
+	                // done: if graph.length=1 remove/hide surrounding graph element (except if .new)
 	                // done: add surrounding graph element to template
 	                var triple = require$$0(e.target).closest('.triple');
 	                triple.animate({ 'height': '0px', 'margin-top': '0px', 'margin-bottom': '0px' }, { duration: 150, complete: function complete() {
 	                        require$$0(e.target).closest('.triple').hide();
 	                    } });
-	                triple.addClass('hide');
-	                if (!triple.siblings(':not(.hide)').length) triple.closest('.graph.old').addClass('hide');
+	                triple.addClass('delete');
+	                if (!triple.siblings(':not(.delete)').length) triple.closest('.graph.old').addClass('delete');
 	                // todo: add to history -> nope, reset button maybe
 	            });
-	            el.find('.accept').click(function (e) {
-	                // todo: apply ontology label function
-	                var text = require$$0(e.target).closest('.triple').find('.tt-input').val();
-	                var editing = require$$0(e.target).closest('.triple').find('a.editing');
+	            el.find('.btn-accept').click(function (e) {
+	                var triple = require$$0(e.target).closest('.triple');
+	                var text = triple.find('.tt-input').val();
+	                var editing = triple.find('a.editing');
 	                if (text.trim()) {
-	                    editing.text(text);
-	                    require$$0(e.target).closest('.triple').addClass('modified');
+	                    editing.text(SNAP.label(text)); // <-- todo: generalize for other ontologies
+	                    triple.addClass('update');
+	                    triple.data(editing.data('token'), text);
 	                }
-	                editing.removeClass('.editing');
+	                editing.removeClass('editing');
 	            });
 	            el.find('#new_button').click(function (e) {
-	                // todo: get graph id (annotator sparql thing has algorithm for it)
 	                var NIL = "_________";
 	                var triple = require$$0('.graph.new').find('.triple:last');
 	                // the following prevents the button from creating a new triple before the previous one has been completed
@@ -41163,142 +41412,237 @@ var perseids = (function (rdfstore) {
 	    };
 	};
 
-	var Delete = function Delete(jqParent) {
-	    classCallCheck(this, Delete);
+	var _this = undefined;
 
-	    var labels = {
-	        "http://data.snapdrgn.net/ontology/snap#AcknowledgedFamilyRelationship": "Has Acknowledged Family Relationship With",
-	        "http://data.snapdrgn.net/ontology/snap#AdoptedFamilyRelationship": "Has Adopted Family Relationship With",
-	        "http://data.snapdrgn.net/ontology/snap#AllianceWith": "Has Alliance With",
-	        "http://data.snapdrgn.net/ontology/snap#AncestorOf": "Is Ancestor Of",
-	        "http://data.snapdrgn.net/ontology/snap#AuntOf": "Is Aunt Of",
-	        "http://data.snapdrgn.net/ontology/snap#Bond": "Has Bond With",
-	        "http://data.snapdrgn.net/ontology/snap#BrotherOf": "Is Brother Of",
-	        "http://data.snapdrgn.net/ontology/snap#CasualIntimateRelationshipWith": "Has Casual Intimate Relationship With",
-	        "http://data.snapdrgn.net/ontology/snap#ChildOf": "Is Child Of",
-	        "http://data.snapdrgn.net/ontology/snap#ChildOfSiblingOf": "Is ChildOfSibling Of",
-	        "http://data.snapdrgn.net/ontology/snap#ClaimedFamilyRelationship": "Has Claimed Family Relationship With",
-	        "http://data.snapdrgn.net/ontology/snap#CousinOf": "Is Cousin Of",
-	        "http://data.snapdrgn.net/ontology/snap#DaughterOf": "Is Daughter Of",
-	        "http://data.snapdrgn.net/ontology/snap#DescendentOf": "Is Descendent Of",
-	        "http://data.snapdrgn.net/ontology/snap#EmnityFor": "Has Emnity For",
-	        "http://data.snapdrgn.net/ontology/snap#ExtendedFamilyOf": "Is Extended Family Of",
-	        "http://data.snapdrgn.net/ontology/snap#ExtendedHouseholdOf": "Is Extended Household Of",
-	        "http://data.snapdrgn.net/ontology/snap#FamilyOf": "Is Family Of",
-	        "http://data.snapdrgn.net/ontology/snap#FatherOf": "Is Father Of",
-	        "http://data.snapdrgn.net/ontology/snap#FosterFamilyRelationship": "Has Foster Family Relationship With",
-	        "http://data.snapdrgn.net/ontology/snap#FreedSlaveOf": "Is Freed Slave Of",
-	        "http://data.snapdrgn.net/ontology/snap#FreedmanOf": "Is Freedman Of",
-	        "http://data.snapdrgn.net/ontology/snap#FreedwomanOf": "Is Freedwoman Of",
-	        "http://data.snapdrgn.net/ontology/snap#FriendshipFor": "Has Friendship For",
-	        "http://data.snapdrgn.net/ontology/snap#GrandchildOf": "Is Grandchild Of",
-	        "http://data.snapdrgn.net/ontology/snap#GranddaughterOf": "Is Granddaughter Of",
-	        "http://data.snapdrgn.net/ontology/snap#GrandfatherOf": "Is Grandfather Of",
-	        "http://data.snapdrgn.net/ontology/snap#GrandmotherOf": "Is Grandmother Of",
-	        "http://data.snapdrgn.net/ontology/snap#GrandparentOf": "Is Grandparent Of",
-	        "http://data.snapdrgn.net/ontology/snap#GrandsonOf": "Is Grandson Of",
-	        "http://data.snapdrgn.net/ontology/snap#GreatGrandfatherOf": "Is GreatGrandfather Of",
-	        "http://data.snapdrgn.net/ontology/snap#GreatGrandmotherOf": "Is GreatGrandmother Of",
-	        "http://data.snapdrgn.net/ontology/snap#GreatGrandparentOf": "Is GreatGrandparent Of",
-	        "http://data.snapdrgn.net/ontology/snap#HalfFamilyRelationship": "HalfFamilyRelationship",
-	        "http://data.snapdrgn.net/ontology/snap#HereditaryFamilyOf": "Is HereditaryFamily Of",
-	        "http://data.snapdrgn.net/ontology/snap#HouseSlaveOf": "Is HouseSlave Of",
-	        "http://data.snapdrgn.net/ontology/snap#HouseholdOf": "Is Household Of",
-	        "http://data.snapdrgn.net/ontology/snap#InLawFamilyRelationship": "Has In-Law Family Relationship With",
-	        "http://data.snapdrgn.net/ontology/snap#IntimateRelationshipWith": "Has Intimate Relationship With",
-	        "http://data.snapdrgn.net/ontology/snap#KinOf": "Is Kin Of",
-	        "http://data.snapdrgn.net/ontology/snap#LegallyRecognisedRelationshipWith": "Has Legally Recognised Relationship With",
-	        "http://data.snapdrgn.net/ontology/snap#Link": "Has Link With",
-	        "http://data.snapdrgn.net/ontology/snap#MaternalFamilyRelationship": "Has Maternal Family Relationship With",
-	        "http://data.snapdrgn.net/ontology/snap#MotherOf": "Is Mother Of",
-	        "http://data.snapdrgn.net/ontology/snap#NephewOf": "Is Nephew Of",
-	        "http://data.snapdrgn.net/ontology/snap#NieceOf": "Is Niece Of",
-	        "http://data.snapdrgn.net/ontology/snap#ParentOf": "Is Parent Of",
-	        "http://data.snapdrgn.net/ontology/snap#PaternalFamilyRelationship": "Has Paternal Family Relationship With",
-	        "http://data.snapdrgn.net/ontology/snap#ProfessionalRelationship": "Has Professional Relationship With",
-	        "http://data.snapdrgn.net/ontology/snap#QualifierRelationship": "Has Qualifier Relationship With",
-	        "http://data.snapdrgn.net/ontology/snap#SeriousIntimateRelationshipWith": "Has Serious Intimate Relationship With",
-	        "http://data.snapdrgn.net/ontology/snap#SiblingOf": "Is Sibling Of",
-	        "http://data.snapdrgn.net/ontology/snap#SiblingOfParentOf": "Is SiblingOfParent Of",
-	        "http://data.snapdrgn.net/ontology/snap#SisterOf": "Is Sister Of",
-	        "http://data.snapdrgn.net/ontology/snap#SlaveOf": "Is Slave Of",
-	        "http://data.snapdrgn.net/ontology/snap#SonOf": "Is Son Of",
-	        "http://data.snapdrgn.net/ontology/snap#StepFamilyRelationship": "Has Step Family Relationship With",
-	        "http://data.snapdrgn.net/ontology/snap#UncleOf": "Is Uncle Of"
+	var namespaces$1 = [{
+	    uri: "http://www.w3.org/ns/oa#",
+	    prefix: "oa:"
+	}];
+
+	var expandMap$1 = {
+	    "http://www.w3.org/ns/oa#TextQuoteSelector": function httpWwwW3OrgNsOaTextQuoteSelector(selector) {
+	        return _$1.chain(["prefix", "exact", "suffix"]).map(function (pos) {
+	            return selector[pos] ? {
+	                g: { type: "uri", value: "http://data.perseus.org/graphs/persons" },
+	                s: { type: "uri", value: selector.id },
+	                p: { type: "uri", value: "http://www.w3.org/ns/oa#" + pos },
+	                o: { type: "literal", value: selector[pos] }
+	            } : undefined;
+	        }).concat({
+	            g: { type: "uri", value: "http://data.perseus.org/graphs/persons" },
+	            s: { type: "uri", value: selector.id },
+	            p: { type: "uri", value: "http://www.w3.org/1999/02/22-rdf-syntax-ns#type" },
+	            o: { type: "uri", value: "http://www.w3.org/ns/oa#TextQuoteSelector" }
+	        }).compact().value();
+	    },
+	    "default": function _default(obj) {
+	        var ns = obj.replace ? _$1.find(_this.namespaces, function (ns) {
+	            return _this.expandMap[obj.replace(ns.prefix, ns.uri)];
+	        }) : undefined;
+	        var resolved = ns ? _this.expandMap[obj.replace(ns.prefix, ns.uri)] : undefined;
+	        return resolved ? resolved : function (x) {
+	            return x;
+	        };
+	    }
+	};
+
+	var simplifyMap$1 = {
+	    "http://www.w3.org/ns/oa#TextQuoteSelector": function httpWwwW3OrgNsOaTextQuoteSelector(selectorTriples) {
+	        // todo: rename to bindings
+	        var selectorObject = {};
+	        selectorObject.type = _$1.find(selectorTriples, function (t) {
+	            return t.p.value.endsWith("type");
+	        }).o.value;
+	        selectorObject.prefix = _$1.find(selectorTriples, function (t) {
+	            return t.p.value.endsWith("prefix");
+	        }).o.value;
+	        selectorObject.exact = _$1.find(selectorTriples, function (t) {
+	            return t.p.value.endsWith("exact");
+	        }).o.value;
+	        selectorObject.suffix = _$1.find(selectorTriples, function (t) {
+	            return t.p.value.endsWith("suffix");
+	        }).o.value;
+	        return selectorObject;
+	    },
+	    "default": function _default(obj) {
+	        var ns = obj.replace ? _$1.find(namespaces$1, function (ns) {
+	            return simplifyMap$1[obj.replace(ns.prefix, ns.uri)];
+	        }) : undefined;
+	        var resolved = ns ? simplifyMap$1[obj.replace(ns.prefix, ns.uri)] : undefined;
+	        return resolved ? resolved : function (x) {
+	            return x;
+	        };
+	    }
+	};
+
+	var OA = function () {
+	    function OA() {
+	        classCallCheck(this, OA);
+	    }
+
+	    createClass(OA, null, [{
+	        key: "expand",
+	        value: function expand(type) {
+	            return expandMap$1[type] || expandMap$1.default(type);
+	        }
+	    }, {
+	        key: "simplify",
+	        value: function simplify(type) {
+	            return simplifyMap$1[type] || simplifyMap$1.default(type);
+	        }
+	    }]);
+	    return OA;
+	}();
+
+	var Editor = function Editor(app) {
+	    var _this = this;
+
+	    classCallCheck(this, Editor);
+
+	    var self = this;
+	    var jqParent = app.anchor;
+	    this.annotator = function () {
+	        return app.annotator;
 	    };
+	    var origin = {};
+	    var selector = {};
+	    var labels = SNAP.labels;
 	    var template = new Templates(labels);
-	    // done: add button (hidden)
-	    var button = $('<div class="btn btn-circle btn-info" id="edit_btn" style="display:none;" data-toggle="modal" data-target="#edit_modal"><span class="glyphicon glyphicon-paperclip"></span></div>');
+	    var button = require$$0('<div class="btn btn-circle btn-info" id="edit_btn" style="display:none;" data-toggle="modal" data-target="#edit_modal"><span class="glyphicon glyphicon-paperclip"></span></div>');
 	    jqParent.append(button);
-	    // done: add deletion interface
-	    var modal = $('<div id="edit_modal" class="modal fade in" style="display: none; "><div class="well"><div class="modal-header"><a class="close" data-dismiss="modal">×</a><h3>This is a Modal Heading</h3></div><div class="modal-body"></div><div class="modal-footer"><button type="button" class="btn btn-success" data-dismiss="modal">Create</button><button type="submit" class="btn btn-danger" data-dismiss="modal">Cancel</button></div></div>');
+	    var modal = require$$0('<div id="edit_modal" class="modal fade in" style="display: none; "><div class="well"><div class="modal-header"><a class="close" data-dismiss="modal">×</a><h3>This is a Modal Heading</h3></div><div class="modal-body"></div><div class="modal-footer"><button type="button" class="btn btn-success" data-dismiss="modal">Create</button><button type="submit" class="btn btn-danger" data-dismiss="modal">Cancel</button></div></div>');
 	    jqParent.append(modal);
 	    var body = modal.find('.modal-body');
-	    var delete_button = modal.find('.btn-success');
+	    var apply_button = modal.find('.btn-success');
 	    button.click(function (e) {
 	        // done: show modal (automatically w/ data-toggle)
 	        // todo: hide button if clicked elsewhere
 	        button.css('display', 'none');
 	    });
 
-	    delete_button.click(function (e) {
+	    /**
+	     * We are done editing and are now processing, in order:
+	     * 1. Pre-existing annotation bodies that have been completely deleted
+	     * 2. Partially deleted annotation bodies
+	     * 3. Modified annotation bodies
+	     * 4. Newly created annotation body
+	     */
+	    // todo: make button disabled by default, check if it needs to be enabled
+	    // note: user = $('body').data('user')
+	    // note: address = $('body').data('urn') || document.url
+	    // note: selector = modal.selector
+	    // note: data =
+	    // note: delete_graphs contains a list of annotation ids to delete [String]
+	    apply_button.click(function (e) {
+	        var annotator = _this.annotator();
+	        // NOTE: COMPUTING EDITS
+	        var NIL = "_________";
 
-	        // todo: update to new modal-body
-	        // todo: hide groups instead of removing them
-	        // todo: look for hidden graph elements, then hidden single triples
-	        // note: GRAPHS = $('.modal-body').find('.group').filter(function(){return this.style.display==='none'})
-	        // note: TRIPLES = $('.modal-body').find('.group').filter(function(){return this.style.display==='none'})
-	        var all = _$1.map(checked, function (x) {
-	            return _$1.reduce(x, function (y, z) {
-	                return y && z;
-	            });
-	        });
-	        var some = _$1.map(checked, function (x) {
-	            return _$1.reduce(x, function (y, z) {
-	                return y || z;
-	            });
-	        });
-	        var deleteAll = _$1.zip(ids, all).filter(function (x) {
-	            return x[1];
-	        }).map(function (x) {
-	            return x[0];
-	        });
-	        var deleteSome = _$1.zip(ids, all, some).filter(function (x) {
-	            return x[2] && !x[1];
-	        }).map(function (x) {
-	            return x[0];
-	        });
+	        var annotations = origin.data('annotations');
+	        var dG = body.find('.graph.old.delete');
+	        var delete_graphs = dG.map(function (i, el) {
+	            return require$$0(el).data('graph');
+	        }).get();
+	        dG.remove();
 
-	        // todo: create sparql
-	        var sparqlAll = deleteAll.map();
-	        var sparqlSome = deleteSome.map();
-	        // todo: run model.execute
-	        // note: var results = this.model.execute(_.concat(sparqlAll,sparqlSome))
-	        // todo: provide visual feedback
-	        // note: results.then((data) => if (data is w/o error) success else failure and report)
-	        console.log(e);
+	        var dT = body.find('.graph.old .triple.delete');
+	        var delete_triples = _$1.flatten(_$1.zip(dT.closest('.graph.old').map(function (i, el) {
+	            return require$$0(el).data('graph');
+	        }), dT.map(function (i, el) {
+	            return require$$0(el).data('original-subject');
+	        }), dT.map(function (i, el) {
+	            return require$$0(el).data('original-predicate');
+	        }), dT.map(function (i, el) {
+	            return require$$0(el).data('original-object');
+	        })).map(function (zipped) {
+	            return { g: zipped[0], s: zipped[1], p: zipped[2], o: zipped[3] };
+	        }).map(function (gspo) {
+	            return SNAP.expand()(gspo, annotations);
+	        }));
+	        dT.remove();
+
+	        var uT = body.find('.graph.old .triple.update');
+	        var update_triples = _$1.zip(uT.closest('.graph.old').map(function (i, el) {
+	            return require$$0(el).data('graph');
+	        }), uT.map(function (i, el) {
+	            return require$$0(el).data('original-subject');
+	        }), uT.map(function (i, el) {
+	            return require$$0(el).data('subject');
+	        }), uT.map(function (i, el) {
+	            return require$$0(el).data('original-predicate');
+	        }), uT.map(function (i, el) {
+	            return require$$0(el).data('predicate');
+	        }), uT.map(function (i, el) {
+	            return require$$0(el).data('original-object');
+	        }), uT.map(function (i, el) {
+	            return require$$0(el).data('object');
+	        }));
+
+	        var cT = body.find('.graph.new .triple:not(.delete)');
+	        var cite = Utils.cite(app.getUser() + app.getUrn(), Math.random().toString());
+	        var create_triples = _$1.flatten(_$1.zip(cT.map(function (i, el) {
+	            return require$$0(el).data('subject');
+	        }), cT.map(function (i, el) {
+	            return require$$0(el).data('predicate');
+	        }), cT.map(function (i, el) {
+	            return require$$0(el).data('object');
+	        })).filter(function (t) {
+	            return t[0] != NIL && t[1] != NIL && t[2] != NIL;
+	        }).map(function (t) {
+	            return { g: cite, s: t[0], p: t[1], o: t[2] };
+	        }).map(function (t) {
+	            return SNAP.expand()(t, annotations);
+	        }));
+	        // todo: add title and motivatedby
+	        // TODO: create title for new annotations in frontend, because it uses ontologies
+	        // TODO: only run execute in create if there is an annotation to create
+	        _$1.assign(selector, { id: cite + "#sel-" + Utils.hash(JSON.stringify(selector)).slice(0, 4) });
+	        var selector_triples = OA.expand(selector.type)(selector);
+
+	        // NOTE: APPLYING EDITS BELOW
+
+	        body.html('<span class="spinner"/>');
+
+	        // todo: make drop take just ids and merge drop_triples with delete_triples
+	        var dropped = annotator.drop(delete_graphs);
+	        var deleted = annotator.delete(_$1.concat(delete_triples, delete_graphs.map(function (id) {
+	            return annotations[id];
+	        })));
+	        annotator.update(update_triples.map(function (t) {
+	            return { g: t[0], s: t[1], p: t[2], o: t[3] };
+	        }), update_triples.map(function (t) {
+	            return { g: t[0], s: t[4], p: t[5], o: t[6] };
+	        }));
+	        annotator.create(cite, _$1.concat(create_triples, selector_triples));
+	        annotator.apply();
+
+	        // todo: this can be improved; the goal is to take a single step in history
+
+	        body.html('<span class="okay"/>');
+	        body.html('<span class="failure"/>');
 	    });
 
-	    modal.update = function (graphs) {
+	    modal.update = function (data, newSelector) {
 	        // done: populate with graphs/triples
+	        // todo: apply ontology-specific transformations
+	        var graphs = SNAP.simplify()(data);
+	        selector = newSelector;
 	        template.init(body, { annotations: Object.keys(graphs).map(function (k) {
 	                return { g: k, triples: graphs[k] };
 	            }) });
 	        // interface.button.click -> get selections and create sparql to delete them
 	    };
+
 	    this.register = function (jqElement) {
 	        jqElement.click(function (e) {
+	            origin = jqElement;
 	            // todo: make button disappear again
-	            // todo: merge with selection tool
-	            var menuState = document.documentElement.clientWidth - parseInt($("#menu-container").css('width'));
-	            var deltaH = menuState ? window.scrollY + 15 : window.scrollY + 15;
-	            var deltaW = menuState ? window.scrollX : window.scrollX;
-	            // note: show button
+	            // todo: merge with selection tool (via a container for plugin buttons)
+	            var menuState = document.documentElement.clientWidth - parseInt(require$$0("#menu-container").css('width'));
+	            var deltaH = menuState ? window.scrollY : window.scrollY - parseInt(require$$0("#menu-container").css('height'));
+	            var deltaW = menuState ? window.scrollX + parseInt(require$$0("#menu-container").css('width')) : window.scrollX;
 	            button.css({ display: "block", position: "absolute", left: e.clientX - deltaW, top: e.clientY + deltaH });
-	            // note: prep interface
-	            modal.update(SNAP.simplify(_$1.pickBy(jqElement.data(), function (v, k) {
-	                return k.startsWith('http://');
-	            })));
+	            modal.update(jqElement.data('annotations'), jqElement.data('selector'));
 	        });
 	    };
 	};
@@ -41311,36 +41655,38 @@ var perseids = (function (rdfstore) {
 	 *
 	 */
 
+
 	var Applicator = function () {
-	    function Applicator(model) {
+	    function Applicator(app) {
 	        var _this = this;
 
 	        classCallCheck(this, Applicator);
 
-	        this.model = model;
-	        this.escape = function (s) {
-	            return s.replace(/[-/\\^$*+?.()（）|[\]{}]/g, '\\$&').replace(/\$/g, '$$$$');
+
+	        var Id = {
+	            fromSelector: function fromSelector(selector) {
+	                return (selector.prefix || "") + selector.exact + (selector.suffix || "");
+	            } // todo: remove TQS specific code, use Utils & OA, but make sure it's consistent between marking and retrieving spans
 	        };
+
+	        var model = app.model;
+
+	        // todo: move this to an utility class, note: var escape = (s) => s.replace(/[-/\\^$*+?.()（）|[\]{}]/g, '\\$&').replace(/\$/g, '$$$$');
 
 	        /**
 	         * Mark selector positions with span tag and add quads to data
 	         * @type {{[http://www.w3.org/ns/oa#TextQuoteSelector]: ((p1:*, p2:*))}}
 	         */
 	        this.mark = {
-	            "http://www.w3.org/ns/oa#TextQuoteSelector": function httpWwwW3OrgNsOaTextQuoteSelector(sel) {
-	                var selector = {};
-	                if (sel.prefix) selector.prefix = sel.prefix.value;
-	                if (sel.exact) selector.exact = sel.exact.value;
-	                if (sel.suffix) selector.suffix = sel.suffix.value;
-
+	            "http://www.w3.org/ns/oa#TextQuoteSelector": function httpWwwW3OrgNsOaTextQuoteSelector(selector) {
 	                var span = document.createElement('span');
-	                span.setAttribute("id", sel.id.value);
+	                span.setAttribute("id", Id.fromSelector(selector));
 	                span.classList.add("perseids-annotation");
-
+	                span.setAttribute("data-selector", JSON.stringify(selector));
 	                var textquote = TextQuoteAnchor$1.fromSelector(document.getElementById("annotator-main"), selector);
 	                var range = textquote.toRange();
-
 	                wrapRangeText(span, range);
+	                return span;
 	            }
 	        };
 
@@ -41351,30 +41697,47 @@ var perseids = (function (rdfstore) {
 	         * @param id (optional) annotation id to query
 	         */
 	        this.load = function (id) {
-	            // get TextSelectors
-	            _this.model.execute(Selectors["http://www.w3.org/ns/oa#TextQuoteSelector"](id))
-	            // mark positions in HTML
-	            .then(function (selectors) {
-	                return _$1.last(selectors).result.map(function (x) {
-	                    return _this.mark["http://www.w3.org/ns/oa#TextQuoteSelector"](x);
+	            return model.execute(Annotation.byIdentifier(id)).then(function (bindings) {
+	                return _$1.groupBy(_$1.last(bindings).result, 'id.value');
+	            }).then(function (grouped) {
+	                var store = {};
+	                var spans = _$1.map(grouped, function (v, k) {
+	                    var selectorURI = _$1.find(v, function (obj) {
+	                        return obj.p.value.endsWith("hasSelector");
+	                    }).o.value;
+	                    var selectorTriples = v.filter(function (obj) {
+	                        return obj.s.value === selectorURI;
+	                    });
+	                    var selectorType = _$1.find(selectorTriples, function (t) {
+	                        return t.p.value.endsWith("type");
+	                    }).o.value; // todo: replace as many endsWith as possible with tests on qualified names
+	                    var selectorObject = OA.simplify(selectorType)(selectorTriples);
+	                    var idFromSelector = Id.fromSelector(selectorObject);
+	                    var span = document.getElementById(idFromSelector) || _this.mark[selectorType](selectorObject);
+	                    if (!store[idFromSelector]) {
+	                        store[idFromSelector] = {};
+	                    }
+	                    store[idFromSelector][k] = v;
+	                    return span;
 	                });
-	            })
-	            // get triples
-	            .then(function (data) {
-	                return _this.model.execute(Graph["http://www.w3.org/ns/oa#hasBody"](id));
-	            }).then(function (data) {
-	                return _$1.last(data).result.map(function (x) {
-	                    var element = require$$0(document.getElementById(x.id.value));
-	                    var array = element.data(x.graph.value) || [];
-	                    element.data(x.graph.value, _$1.concat(array, { s: x.subject.value, p: x.predicate.value, o: x.object.value }));
+
+	                return _$1.uniq(spans).map(function (span) {
+	                    var data = store[span.getAttribute('id')];
+	                    var element = document.getElementById(span.getAttribute('id'));
+	                    element.setAttribute('data-annotations', JSON.stringify(data));
+	                    return require$$0(element);
+	                });
+	            }).then(function (elements) {
+	                return elements.map(function (element) {
 	                    _this.tooltip.register(element);
 	                    _this.delete.register(element);
-	                    return { g: x.graph.value, s: x.subject.value, p: x.predicate.value, o: x.object.value };
+	                    return element;
 	                });
-	            })
-	            // then add global view
-	            .then(function (data) {
-	                var snap = SNAP.simplify(_$1.groupBy(data, 'g'));
+	            }).then(function (elements) {
+	                var grouped = elements.reduce(function (object, element) {
+	                    return _$1.merge(object, element.data('annotations'));
+	                }, {});
+	                var snap = SNAP.simplify()(grouped); // todo: move into nodelink, specify API for document plugins
 	                var input = _$1.flatMap(snap, function (v, k) {
 	                    return v.map(function (o) {
 	                        return Object.assign(o, { g: k });
@@ -41400,14 +41763,14 @@ var perseids = (function (rdfstore) {
 	            }
 	        };
 
-	        var body = require$$0('body');
-	        this.tooltip = new Tooltip(body);
-	        this.delete = new Delete(body);
-	        this.nodelink = new NodeLink(body);
+	        // var body = $('body');
+	        this.tooltip = new Tooltip(app);
+	        this.delete = new Editor(app);
+	        this.nodelink = new NodeLink(app);
 	        this.load();
 	    }
 
-	    // TODO: move plugins into lists for elements (e.g. tooltip) and document (e.g. nodelink)
+	    // todo: move plugins into lists for elements (e.g. tooltip) and document (e.g. nodelink)
 
 	    createClass(Applicator, [{
 	        key: 'load',
@@ -41434,253 +41797,189 @@ var perseids = (function (rdfstore) {
 	    return Applicator;
 	}();
 
+	// todo: think about api - stacking commands, then executing them, in order to facilitate single step history?
+
 	/**
 	 * Class for creation of annotations
 	 *
 	 */
 
-	var Annotator = function () {
-	    function Annotator(model, applicator, history) {
-	        var _this = this;
+	var Annotator =
 
-	        classCallCheck(this, Annotator);
+	// API: create(fragment), update(fragments), delete(fragment), drop(graph)
 
+	function Annotator(app) {
+	    var _this = this;
 
-	        this.model = model;
-	        this.applicator = applicator;
-	        this.history = history;
-	        this.currentRange = undefined;
-	        this.hash = function (str) {
-	            return str.split("").reduce(function (a, b) {
-	                a = (a << 5) - a + b.charCodeAt(0);return a & a;
-	            }, 0);
-	        };
+	    classCallCheck(this, Annotator);
 
-	        /**
-	         * Acquire variables for Open Annotations
-	         * @type {{cite: ((p1?:*, p2?:*)=>string), user: (()=>string), urn: (()), date: (()=>string), triple: (()), selector: (()=>(any))}}
-	         */
-	        // TODO: FIX ACQUIRE WITH NEW SELECTORS
-	        this.acquire = {
-	            "cite": function cite(pre, post) {
-	                return "http://data.perseus.org/collections/urn:cite:perseus:pdljann." + _this.hash(pre) + _this.hash(post);
-	            },
-	            "user": function user() {
-	                return require$$0('#annotator-main').data().user;
-	            },
-	            "urn": function urn() {
-	                return require$$0('#annotator-main').data().urn;
-	            },
-	            "date": function date() {
-	                return new Date().toISOString();
-	            },
-	            "triple": function triple() {
-	                return {
-	                    subject: (require$$0("#subject_prefixes").data('url') | "") + require$$0("#create_subject > span > input").last().val(),
-	                    predicate: (require$$0("#predicate_prefixes").data('url') | "") + require$$0("#create_predicate > span > input").last().val(),
-	                    object: (require$$0("#object_prefixes").data('url') | "") + require$$0("#create_object > span > input").last().val()
-	                };
-	            },
-	            "selector": function selector() {
-	                return require$$0('#create_range').data('selector');
-	            }
-	        };
+	    var self = this;
+	    this.defaultGraph = "http://data.perseus.org/graphs/people";
+	    this.userId = app.anchor.data('user');
+	    this.urn = app.anchor.data('urn');
+	    // TODO: add controls for history, save at bottom of anchor
+	    this.anchor = app.anchor;
+	    this.model = app.model;
+	    this.applicator = app.applicator;
+	    this.history = app.history;
+	    this.currentRange = undefined;
 
-	        this.selector = {
-	            "http://www.w3.org/ns/oa#TextQuoteSelector": function httpWwwW3OrgNsOaTextQuoteSelector() {
-	                var selection = document.getSelection();
-	                return TextQuoteAnchor$1.fromRange(document.getElementById("annotator-main"), selection.getRangeAt(0)).toSelector();
-	            }
-	        };
-	        /**
-	         * Event handlers for processing selections and showing/hiding starter button,
-	         *
-	         * @type {{[http://www.w3.org/ns/oa#TextQuoteSelector]: ((p1:*))}}
-	         */
-	        this.starter = {
-	            "http://www.w3.org/ns/oa#TextQuoteSelector": function httpWwwW3OrgNsOaTextQuoteSelector(event) {
-	                var selection = document.getSelection();
-	                var starter = require$$0('#starter');
-	                if (selection && !selection.isCollapsed && starter.css('display') === 'none') {
-	                    _this.currentRange = selection.getRangeAt(0).cloneRange();
-	                    var selector = _this.selector["http://www.w3.org/ns/oa#TextQuoteSelector"]();
-	                    var menuState = document.documentElement.clientWidth - parseInt(require$$0("#menu-container").css('width'));
-	                    var deltaH = menuState ? window.scrollY + 15 : window.scrollY - parseInt(require$$0("#menu-container").css('height')) + 15;
-	                    var deltaW = menuState ? window.scrollX + parseInt(require$$0("#menu-container").css('width')) - 10 : window.scrollX - 10;
-	                    starter.css({ display: "block", position: "absolute", left: event.clientX - deltaW, top: event.clientY + deltaH });
-
-	                    // TODO: USE TEMPLATE
-	                    // TODO: MAKE STARTER OPEN TEMPLATE (data-target)
-	                    // TODO: template.init() with selector
-	                } else starter.css({ display: "none" });
-	            }
-
-	        };
-
-	        this.init = function (id) {
-	            var id = id ? id : _this.acquire.urn();
-	            // NOTE: switch to mustache.js templating
-	            // TODO: MOVE SUBSTRINGMATCHER TO WHERE TYPEAHEAD IS USED
-	            var substringMatcher = function substringMatcher(strs) {
-	                return function findMatches(q, cb) {
-	                    var matches, substrRegex;
-	                    matches = [];
-	                    substrRegex = new RegExp(q, 'i');
-	                    require$$0.each(strs, function (i, str) {
-	                        if (substrRegex.test(str)) {
-	                            matches.push(str);
-	                        }
-	                    });
-	                    cb(matches);
-	                };
-	            };
-	            var app = require$$0('[data-urn="' + id + '"]');
-	            app.append('<div class="btn btn-circle" id="starter" style="display:none;" data-toggle="modal" data-target="#edit_modal"><span class="glyphicon glyphicon-paperclip"></span></div>');
-	            // then inject selection event listener
-	            app.mouseup(_this.starter["http://www.w3.org/ns/oa#TextQuoteSelector"]);
-	        };
-
-	        this.init();
-	    }
-
-	    createClass(Annotator, [{
-	        key: 'save',
-	        value: function save() {
-	            var _this2 = this;
-
-	            // acquire insert parameters
-	            var selector = this.acquire.selector();
-	            selector.urn = this.acquire.urn();
-	            var date = this.acquire.date();
-	            var triple = { s: this.acquire.triple().subject, p: this.acquire.triple().predicate, o: this.acquire.triple().object };
-	            var user = this.acquire.user(); // agent -> nemo or oauth
-	            var cite = this.acquire.cite(user + selector.urn, date + selector.prefix + selector.exact + selector.suffix + triple.s + triple.p + triple.o);
-	            triple.g = cite;
-
-	            // bindings2insert -> model.execute
-
-	            // annotation -> get from input fields
-	            var binds = function (cite, graph) {
-	                return {
-	                    "oa": function oa() {
-	                        return [{ "g": { "type": "uri", "value": graph || "http://data.perseus.org/graphs/people" },
-	                            "s": { "type": "uri", "value": cite },
-	                            "p": { "type": "uri", "value": "rdf:type" },
-	                            "o": { "type": "uri", "value": "oa:Annotation" } }, { "g": { "type": "uri", "value": graph || "http://data.perseus.org/graphs/people" },
-	                            "s": { "type": "uri", "value": cite },
-	                            "p": { "type": "uri", "value": "dcterms:source" },
-	                            "o": { "type": "uri", "value": "https://hypothes.is/api/annotations/oM3uKsoSRXmPfg1vsNSfxw" } }, { "g": { "type": "uri", "value": graph || "http://data.perseus.org/graphs/people" },
-	                            "s": { "type": "uri", "value": cite },
-	                            "p": { "type": "uri", "value": "oa:serializedBy" },
-	                            "o": { "type": "uri", "value": "https://github.com/fbaumgardt/perseids-annotator" } }];
-	                    },
-	                    "date": function date(_date) {
-	                        return [{ "p": { "type": "uri", "value": "oa:annotatedAt" },
-	                            "g": { "type": "uri", "value": graph || "http://data.perseus.org/graphs/people" },
-	                            "s": { "type": "uri", "value": cite },
-	                            "o": { "datatype": "http://www.w3.org/2001/XMLSchema#dateTimeStamp", "type": "literal", "value": _date } }];
-	                    },
-	                    "user": function user(group) {
-	                        return [{ "p": { "type": "uri", "value": "oa:annotatedBy" },
-	                            "g": { "type": "uri", "value": graph || "http://data.perseus.org/graphs/people" },
-	                            "s": { "type": "uri", "value": cite },
-	                            "o": { "type": "uri", "value": group } } // NOTE: describe <o> query
-	                        ];
-	                    },
-	                    "target": function target(_target) {
-	                        return [{ "p": { "type": "uri", "value": "oa:hasTarget" },
-	                            "g": { "type": "uri", "value": graph || "http://data.perseus.org/graphs/people" },
-	                            "s": { "type": "uri", "value": cite },
-	                            "o": { "type": "uri", "value": cite + "#target-1" } }, { "p": { "type": "uri", "value": "rdf:type" },
-	                            "g": { "type": "uri", "value": graph || "http://data.perseus.org/graphs/people" },
-	                            "s": { "type": "uri", "value": cite + "#target-1" },
-	                            "o": { "type": "uri", "value": "oa:SpecificResource" } }, { "p": { "type": "uri", "value": "oa:hasSource" },
-	                            "g": { "type": "uri", "value": graph || "http://data.perseus.org/graphs/people" },
-	                            "s": { "type": "uri", "value": cite + "#target-1" },
-	                            "o": { "type": "uri", "value": _target.urn } }, { "p": { "type": "uri", "value": "oa:hasSelector" },
-	                            "g": { "type": "uri", "value": graph || "http://data.perseus.org/graphs/people" },
-	                            "s": { "type": "uri", "value": cite + "#target-1" },
-	                            "o": { "type": "uri", "value": cite + "#target-1-sel-1" } }, { "p": { "type": "uri", "value": "rdf:type" },
-	                            "g": { "type": "uri", "value": graph || "http://data.perseus.org/graphs/people" },
-	                            "s": { "type": "uri", "value": cite + "#target-1-sel-1" },
-	                            "o": { "type": "uri", "value": "oa:TextQuoteSelector" } }, { "p": { "type": "uri", "value": "oa:prefix" },
-	                            "g": { "type": "uri", "value": graph || "http://data.perseus.org/graphs/people" },
-	                            "s": { "type": "uri", "value": cite + "#target-1-sel-1" },
-	                            "o": { "type": "literal", "value": _target.prefix } }, { "p": { "type": "uri", "value": "oa:exact" },
-	                            "g": { "type": "uri", "value": graph || "http://data.perseus.org/graphs/people" },
-	                            "s": { "type": "uri", "value": cite + "#target-1-sel-1" },
-	                            "o": { "type": "literal", "value": _target.exact } }, { "p": { "type": "uri", "value": "oa:suffix" },
-	                            "g": { "type": "uri", "value": graph || "http://data.perseus.org/graphs/people" },
-	                            "s": { "type": "uri", "value": cite + "#target-1-sel-1" },
-	                            "o": { "type": "literal", "value": _target.suffix } }];
-	                    },
-	                    "annotation": function annotation(triple) {
-	                        return [// note: SNAP ONTOLOGY + how to do title??
-	                        { "p": { "type": "uri", "value": "dcterms:title" },
-	                            "g": { "type": "uri", "value": graph || "http://data.perseus.org/graphs/people" },
-	                            "s": { "type": "uri", "value": cite },
-	                            "o": { "type": "literal", "value": "http://data.perseus.org/people/smith:tecmessa-1#this identifies Tecmessa as snap:IntimateRelationship in urn:cts:pdlrefwk:viaf88890045.003.perseus-eng1:A.ajax_1" } }, { "p": { "type": "uri", "value": "oa:motivatedBy" },
-	                            "g": { "type": "uri", "value": graph || "http://data.perseus.org/graphs/people" },
-	                            "s": { "type": "uri", "value": cite },
-	                            "o": { "type": "uri", "value": "oa:identifying" } }, { "p": { "type": "uri", "value": "oa:hasBody" },
-	                            "g": { "type": "uri", "value": graph || "http://data.perseus.org/graphs/people" },
-	                            "s": { "type": "uri", "value": cite },
-	                            "o": { "type": "uri", "value": cite } }, { "p": { "type": "uri", "value": "http://www.w3.org/1999/02/22-rdf-syntax-ns#type" },
-	                            "g": { "type": "uri", "value": cite },
-	                            "s": { "type": "uri", "value": cite + "#bond-1" },
-	                            "o": { "type": "uri", "value": triple.p } }, { "p": { "type": "uri", "value": "snap:has-bond" },
-	                            "g": { "type": "uri", "value": cite },
-	                            "s": { "type": "uri", "value": triple.s },
-	                            "o": { "type": "uri", "value": cite + "#bond-1" } }, { "p": { "type": "uri", "value": "snap:bond-with" },
-	                            "g": { "type": "uri", "value": cite },
-	                            "s": { "type": "uri", "value": cite + "#bond-1" },
-	                            "o": { "type": "uri", "value": triple.o } }];
-	                    }
-	                };
-	            }(cite);
-
-	            var bindings = { head: { vars: ["s", "p", "o", "g"] }, results: { bindings: _.concat(binds.oa(cite), binds.date(date), binds.user(user), binds.target(selector), binds.annotation(triple)) } };
-
-	            var insert = sparql.bindings2insert(bindings.results.bindings);
-
-	            insert.forEach(function (sparql) {
-	                return _this2.model.execute(sparql).then(function (r) {
-
-	                    // clear inputs
-
-	                    require$$0('#create_subject > span > input').last().val('');
-	                    require$$0('#create_predicate > span > input').last().val('');
-	                    require$$0('#create_object > span > input').last().val('');
-
-	                    // remove modal
-	                    require$$0('#create_modal').toggle();
-	                    require$$0('body').removeClass('modal-open');
-	                    require$$0('.modal-backdrop').remove();
-	                    require$$0('#create_modal').removeClass('in');
-
-	                    // add span
-	                    var span = document.createElement('span');
-	                    span.setAttribute('class', 'perseids-annotation');
-	                    span.setAttribute('id', cite);
-	                    _this2.currentRange.surroundContents(span);
-	                    var annotation_body = [{ s: cite + "#bond-1", p: "http://www.w3.org/1999/02/22-rdf-syntax-ns#type", o: triple.p }, { s: triple.s, p: "snap:has-bond", o: cite + "#bond-1" }, { s: cite + "#bond-1", p: "snap:bond-with", o: triple.o }];
-	                    require$$0(span).data(cite, annotation_body);
-	                    // applicator.load(id)
-	                    _this2.applicator.tooltip(require$$0(span));
-	                    // add command to history
-	                });
-	            });
+	    this.selector = {
+	        "http://www.w3.org/ns/oa#TextQuoteSelector": function httpWwwW3OrgNsOaTextQuoteSelector() {
+	            var selection = document.getSelection();
+	            return TextQuoteAnchor$1.fromRange(document.getElementById("annotator-main"), selection.getRangeAt(0)).toSelector();
 	        }
-	    }]);
-	    return Annotator;
-	}();
+	    };
+	    /**
+	     * Event handlers for processing selections and showing/hiding starter button,
+	     *
+	     * @type {{[http://www.w3.org/ns/oa#TextQuoteSelector]: ((p1:*))}}
+	     */
+	    this.starter = {
+	        "http://www.w3.org/ns/oa#TextQuoteSelector": function httpWwwW3OrgNsOaTextQuoteSelector(event) {
+	            var selection = document.getSelection();
+	            var starter = require$$0('#starter');
+	            if (selection && !selection.isCollapsed && starter.css('display') === 'none') {
+	                _this.currentRange = selection.getRangeAt(0).cloneRange();
+	                var selector = _this.selector["http://www.w3.org/ns/oa#TextQuoteSelector"]();
+	                var menuState = document.documentElement.clientWidth - parseInt(require$$0("#menu-container").css('width'));
+	                var deltaH = menuState ? window.scrollY + 15 : window.scrollY - parseInt(require$$0("#menu-container").css('height')) + 15;
+	                var deltaW = menuState ? window.scrollX + parseInt(require$$0("#menu-container").css('width')) - 10 : window.scrollX - 10;
+	                starter.css({ display: "block", position: "absolute", left: event.clientX - deltaW, top: event.clientY + deltaH });
+
+	                // TODO: USE TEMPLATE [DONE PROBABLY]
+	                // TODO: MAKE STARTER OPEN TEMPLATE (data-target) [DONE PROBABLY]
+	                // TODO: template.init() with selector [DONE PROBABLY]
+	            } else starter.css({ display: "none" });
+	        }
+
+	    };
+
+	    this.init = function (id) {
+	        var id = id ? id : _this.anchor.data('urn');
+	        var app = require$$0('[data-urn="' + id + '"]');
+	        app.append('<div class="btn btn-circle" id="starter" style="display:none;" data-toggle="modal" data-target="#edit_modal"><span class="glyphicon glyphicon-paperclip"></span></div>');
+	        // then inject selection event listener
+	        app.mouseup(_this.starter["http://www.w3.org/ns/oa#TextQuoteSelector"]);
+	    };
+
+	    this.init();
+
+	    /*
+	    Editing functions below, they take bindings, create and run sparql queries, and post results back as promise
+	     */
+
+	    /**
+	     * DROP: delete entire annotations including metadata
+	     * Takes the ids in list.drop and
+	     * @param graphs Object where graphs.triples (Array[Object]) is a list of GSPOs to delete and graphs.ids (Array[String]) is the list of annotation ids to be cleared
+	     */
+	    this.drop = function (graphs) {
+	        return _this.model.execute(graphs.map(function (uri) {
+	            return 'DROP GRAPH <' + uri + '>';
+	        }));
+	    };
+
+	    /**
+	     *
+	     * @param deletions () is the list
+	     */
+	    this.delete = function (deletions) {
+	        return _.flatten(deletions || []).length ? _this.model.execute(SPARQL.bindingsToDelete(_.flatten(deletions).map(function (gspo) {
+	            return gspo.g.value ? gspo : SPARQL.gspoToBinding(gspo);
+	        }))) : undefined;
+	    };
+
+	    /**
+	     *
+	     * @param deletions
+	     * @param insertions
+	     */
+	    this.update = function (deletions, insertions) {
+	        return _this.model.execute(_.flatten([SPARQL.bindingsToDelete(_.flatten(deletions).map(function (gspo) {
+	            return gspo.g.value ? gspo : SPARQL.gspoToBinding(gspo);
+	        })), SPARQL.bindingsToInsert(_.flatten(insertions.concat(
+	        // filter for graphs, map to graphid, get uniq
+	        _.uniq(insertions.map(function (i) {
+	            return i.g.value || i.g;
+	        })).map(function (annotationId) {
+	            return [{
+	                "p": { "type": "uri", "value": "oa:annotatedAt" },
+	                "g": { "type": "uri", "value": self.defaultGraph },
+	                "s": { "type": "uri", "value": annotationId }, //
+	                "o": { "datatype": "http://www.w3.org/2001/XMLSchema#dateTimeStamp", "type": "literal", "value": date }
+	            }, { "p": { "type": "uri", "value": "oa:annotatedBy" },
+	                "g": { "type": "uri", "value": self.defaultGraph },
+	                "s": { "type": "uri", "value": annotationId },
+	                "o": { "type": "uri", "value": self.userId } }];
+	        }))).map(function (gspo) {
+	            return gspo.g.value ? gspo : SPARQL.gspoToBinding(gspo);
+	        }))]));
+	    };
+
+	    /**
+	     *
+	     * @param list
+	     */
+	    this.create = function (annotationId, bindings) {
+	        // todo: figure out default graph for use cases (maybe motivatedBy, by plugin or manual in anchor?)
+	        var selectorId = _.find(bindings, function (binding) {
+	            return binding.p.value === "http://www.w3.org/ns/oa#exact";
+	        }).s.value;
+	        // todo: make independent of selector type
+	        var targetId = annotationId + "#target-" + Utils.hash(JSON.stringify(selectorId)).slice(0, 4);
+	        var oa = [{ "g": { "type": "uri", "value": self.defaultGraph },
+	            "s": { "type": "uri", "value": annotationId },
+	            "p": { "type": "uri", "value": "rdf:type" },
+	            "o": { "type": "uri", "value": "oa:Annotation" } }, { "g": { "type": "uri", "value": self.defaultGraph },
+	            "s": { "type": "uri", "value": annotationId },
+	            "p": { "type": "uri", "value": "dcterms:source" },
+	            "o": { "type": "uri", "value": "https://github.com/fbaumgardt/perseids-annotator" } }, { "g": { "type": "uri", "value": self.defaultGraph },
+	            "s": { "type": "uri", "value": annotationId },
+	            "p": { "type": "uri", "value": "oa:serializedBy" },
+	            "o": { "type": "uri", "value": "https://github.com/fbaumgardt/perseids-annotator" } }];
+
+	        var target = [{ "p": { "type": "uri", "value": "oa:hasTarget" },
+	            "g": { "type": "uri", "value": self.defaultGraph },
+	            "s": { "type": "uri", "value": annotationId },
+	            "o": { "type": "uri", "value": targetId } }, { "p": { "type": "uri", "value": "rdf:type" },
+	            "g": { "type": "uri", "value": self.defaultGraph },
+	            "s": { "type": "uri", "value": targetId },
+	            "o": { "type": "uri", "value": "oa:SpecificResource" } }, // todo: figure out alternatives for non-text targets
+	        { "p": { "type": "uri", "value": "oa:hasSource" },
+	            "g": { "type": "uri", "value": self.defaultGraph },
+	            "s": { "type": "uri", "value": targetId },
+	            "o": { "type": "uri", "value": self.urn } }, { "p": { "type": "uri", "value": "oa:hasSelector" },
+	            "g": { "type": "uri", "value": self.defaultGraph },
+	            "s": { "type": "uri", "value": targetId },
+	            "o": { "type": "uri", "value": selectorId } }];
+
+	        var date = [{
+	            "p": { "type": "uri", "value": "oa:annotatedAt" },
+	            "g": { "type": "uri", "value": self.defaultGraph },
+	            "s": { "type": "uri", "value": annotationId },
+	            "o": { "datatype": "http://www.w3.org/2001/XMLSchema#dateTimeStamp", "type": "literal", "value": new Date().toISOString() }
+	        }];
+
+	        var user = [{ "p": { "type": "uri", "value": "oa:annotatedBy" },
+	            "g": { "type": "uri", "value": self.defaultGraph },
+	            "s": { "type": "uri", "value": annotationId },
+	            "o": { "type": "uri", "value": self.userId } } // NOTE: describe <o> query
+	        ];
+
+	        var insert = SPARQL.bindingsToInsert(_.flatten(oa, date, user, target, bindings).map(function (gspo) {
+	            return gspo.g.value ? gspo : SPARQL.gspoToBinding(gspo);
+	        }));
+	        _this.model.execute(insert);
+	    };
+	};
 
 	var History = function () {
-	    function History(model, applicator) {
+	    function History(app) {
 	        classCallCheck(this, History);
 
-	        this.model = model;
-	        this.applicator = applicator;
+	        this.model = app.model;
+	        this.applicator = app.applicator;
 	        this.commands = [];
 	        this.index = 0;
 	    }
@@ -44860,37 +45159,35 @@ var perseids = (function (rdfstore) {
 	window.jQuery = require$$0;
 	window.jquery = require$$0;
 	window._ = _$1;
-	var model = new Model();
+	var Plokamos = function Plokamos(element) {
+	    classCallCheck(this, Plokamos);
 
-	var initialize = function initialize() {
-	    var getEndpoint = function getEndpoint() {
-	        return require$$0('#annotator-main').data().sparqlEndpoint;
+	    var self = this;
+	    this.anchor = require$$0(element);
+	    this.model = new Model();
+	    // keep this dynamically loaded for now
+	    this.getEndpoint = function () {
+	        return self.anchor.data().sparqlEndpoint;
 	    };
-	    var getUrn = function getUrn() {
-	        return require$$0('#annotator-main').data().urn;
+	    this.getUrn = function () {
+	        return self.anchor.data().urn;
 	    };
-	    var getUser = function getUser() {
-	        return undefined;
-	    }; // $('#annotator-main').dataset.user
+	    this.getUser = function () {
+	        return self.anchor.data().user;
+	    };
 
-	    var results = model.load(getEndpoint(), getUrn(), getUser()).then(function (success) {
-	        return window.perseids.applicator = new Applicator(model);
-	    }).then(function (success) {
-	        return window.perseids.history = new History(model, window.perseids.applicator);
-	    }).then(function (success) {
-	        return window.perseids.annotator = new Annotator(model, window.perseids.applicator, window.perseids.history);
-	    });
+	    this.initialize = function () {
+
+	        self.model.load(self.getEndpoint(), self.getUrn(), self.getUser()).then(function (success) {
+	            return self.applicator = new Applicator(self);
+	        }).then(function (success) {
+	            return self.history = new History(self);
+	        }).then(function (success) {
+	            return self.annotator = new Annotator(self);
+	        });
+	    };
 	};
 
-	// TODO: define clean interface for plugin, Annotator & Applicator
-
-	var main = {
-	    initialize: initialize,
-	    model: model,
-	    tqa: TextQuoteAnchor$1,
-	    wrapRangeText: wrapRangeText
-	};
-
-	return main;
+	window.Plokamos = Plokamos;
 
 }(rdfstore));
