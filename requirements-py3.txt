@@ -1,4 +1,5 @@
 flask_nemo>=1.0.0b1
 capitains_nautilus>=0.0.5
-nemo_oauth_plugin>=0.0.2
+nemo_oauth_plugin>=0.0.4
 requests>=2.8.1
+
