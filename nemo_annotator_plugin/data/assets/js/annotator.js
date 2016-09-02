@@ -41580,7 +41580,7 @@
 
 	        var cT = body.find('.graph.new .triple:not(.delete)');
 	        var cite = Utils.cite(app.getUser() + app.getUrn(), Math.random().toString());
-	        var create_triples = _$1.flatten(_$1.zip(cT.map(function (i, el) {
+	        var new_triples = _$1.flatten(_$1.zip(cT.map(function (i, el) {
 	            return require$$0(el).data('subject');
 	        }), cT.map(function (i, el) {
 	            return require$$0(el).data('predicate');
@@ -41598,12 +41598,12 @@
 	        // TODO: only run execute in create if there is an annotation to create
 	        _$1.assign(selector, { id: cite + "#sel-" + Utils.hash(JSON.stringify(selector)).slice(0, 4) });
 	        var selector_triples = OA.expand(selector.type)(selector);
+	        var create_triples = new_triples.length ? _$1.concat(new_triples, selector_triples) : [];
 
 	        // NOTE: APPLYING EDITS BELOW
 
 	        body.html('<span class="spinner"/>');
 
-	        // todo: make drop take just ids and merge drop_triples with delete_triples
 	        var dropped = annotator.drop(delete_graphs);
 	        var deleted = annotator.delete(_$1.concat(delete_triples, delete_graphs.map(function (id) {
 	            return annotations[id];
@@ -41613,8 +41613,8 @@
 	        }), update_triples.map(function (t) {
 	            return { g: t[0], s: t[4], p: t[5], o: t[6] };
 	        }));
-	        annotator.create(cite, _$1.concat(create_triples, selector_triples));
-	        annotator.apply();
+	        annotator.create(cite, create_triples);
+	        // annotator.apply()
 
 	        // todo: this can be improved; the goal is to take a single step in history
 
@@ -41907,7 +41907,7 @@
 	                "p": { "type": "uri", "value": "oa:annotatedAt" },
 	                "g": { "type": "uri", "value": self.defaultGraph },
 	                "s": { "type": "uri", "value": annotationId }, //
-	                "o": { "datatype": "http://www.w3.org/2001/XMLSchema#dateTimeStamp", "type": "literal", "value": date }
+	                "o": { "datatype": "http://www.w3.org/2001/XMLSchema#dateTimeStamp", "type": "literal", "value": new Date().toISOString() }
 	            }, { "p": { "type": "uri", "value": "oa:annotatedBy" },
 	                "g": { "type": "uri", "value": self.defaultGraph },
 	                "s": { "type": "uri", "value": annotationId },
@@ -41922,55 +41922,79 @@
 	     * @param list
 	     */
 	    this.create = function (annotationId, bindings) {
-	        // todo: figure out default graph for use cases (maybe motivatedBy, by plugin or manual in anchor?)
-	        var selectorId = _.find(bindings, function (binding) {
-	            return binding.p.value === "http://www.w3.org/ns/oa#exact";
-	        }).s.value;
-	        // todo: make independent of selector type
-	        var targetId = annotationId + "#target-" + Utils.hash(JSON.stringify(selectorId)).slice(0, 4);
-	        var oa = [{ "g": { "type": "uri", "value": self.defaultGraph },
-	            "s": { "type": "uri", "value": annotationId },
-	            "p": { "type": "uri", "value": "rdf:type" },
-	            "o": { "type": "uri", "value": "oa:Annotation" } }, { "g": { "type": "uri", "value": self.defaultGraph },
-	            "s": { "type": "uri", "value": annotationId },
-	            "p": { "type": "uri", "value": "dcterms:source" },
-	            "o": { "type": "uri", "value": "https://github.com/fbaumgardt/perseids-annotator" } }, { "g": { "type": "uri", "value": self.defaultGraph },
-	            "s": { "type": "uri", "value": annotationId },
-	            "p": { "type": "uri", "value": "oa:serializedBy" },
-	            "o": { "type": "uri", "value": "https://github.com/fbaumgardt/perseids-annotator" } }];
+	        var result = require$$0.Deferred().resolve([]).promise();
+	        if (bindings.length) {
+	            // todo: figure out default graph for use cases (maybe motivatedBy, by plugin or manual in anchor?)
+	            var selectorId = _.find(bindings, function (binding) {
+	                return binding.p.value === "http://www.w3.org/ns/oa#exact";
+	            }).s.value;
+	            // todo: make independent of selector type
+	            var targetId = annotationId + "#target-" + Utils.hash(JSON.stringify(selectorId)).slice(0, 4);
+	            var oa = [{
+	                "g": { "type": "uri", "value": self.defaultGraph },
+	                "s": { "type": "uri", "value": annotationId },
+	                "p": { "type": "uri", "value": "rdf:type" },
+	                "o": { "type": "uri", "value": "oa:Annotation" }
+	            }, {
+	                "g": { "type": "uri", "value": self.defaultGraph },
+	                "s": { "type": "uri", "value": annotationId },
+	                "p": { "type": "uri", "value": "dcterms:source" },
+	                "o": { "type": "uri", "value": "https://github.com/fbaumgardt/perseids-annotator" }
+	            }, {
+	                "g": { "type": "uri", "value": self.defaultGraph },
+	                "s": { "type": "uri", "value": annotationId },
+	                "p": { "type": "uri", "value": "oa:serializedBy" },
+	                "o": { "type": "uri", "value": "https://github.com/fbaumgardt/perseids-annotator" }
+	            }];
 
-	        var target = [{ "p": { "type": "uri", "value": "oa:hasTarget" },
-	            "g": { "type": "uri", "value": self.defaultGraph },
-	            "s": { "type": "uri", "value": annotationId },
-	            "o": { "type": "uri", "value": targetId } }, { "p": { "type": "uri", "value": "rdf:type" },
-	            "g": { "type": "uri", "value": self.defaultGraph },
-	            "s": { "type": "uri", "value": targetId },
-	            "o": { "type": "uri", "value": "oa:SpecificResource" } }, // todo: figure out alternatives for non-text targets
-	        { "p": { "type": "uri", "value": "oa:hasSource" },
-	            "g": { "type": "uri", "value": self.defaultGraph },
-	            "s": { "type": "uri", "value": targetId },
-	            "o": { "type": "uri", "value": self.urn } }, { "p": { "type": "uri", "value": "oa:hasSelector" },
-	            "g": { "type": "uri", "value": self.defaultGraph },
-	            "s": { "type": "uri", "value": targetId },
-	            "o": { "type": "uri", "value": selectorId } }];
+	            var target = [{
+	                "p": { "type": "uri", "value": "oa:hasTarget" },
+	                "g": { "type": "uri", "value": self.defaultGraph },
+	                "s": { "type": "uri", "value": annotationId },
+	                "o": { "type": "uri", "value": targetId }
+	            }, {
+	                "p": { "type": "uri", "value": "rdf:type" },
+	                "g": { "type": "uri", "value": self.defaultGraph },
+	                "s": { "type": "uri", "value": targetId },
+	                "o": { "type": "uri", "value": "oa:SpecificResource" }
+	            }, // todo: figure out alternatives for non-text targets
+	            {
+	                "p": { "type": "uri", "value": "oa:hasSource" },
+	                "g": { "type": "uri", "value": self.defaultGraph },
+	                "s": { "type": "uri", "value": targetId },
+	                "o": { "type": "uri", "value": self.urn }
+	            }, {
+	                "p": { "type": "uri", "value": "oa:hasSelector" },
+	                "g": { "type": "uri", "value": self.defaultGraph },
+	                "s": { "type": "uri", "value": targetId },
+	                "o": { "type": "uri", "value": selectorId }
+	            }];
 
-	        var date = [{
-	            "p": { "type": "uri", "value": "oa:annotatedAt" },
-	            "g": { "type": "uri", "value": self.defaultGraph },
-	            "s": { "type": "uri", "value": annotationId },
-	            "o": { "datatype": "http://www.w3.org/2001/XMLSchema#dateTimeStamp", "type": "literal", "value": new Date().toISOString() }
-	        }];
+	            var date = [{
+	                "p": { "type": "uri", "value": "oa:annotatedAt" },
+	                "g": { "type": "uri", "value": self.defaultGraph },
+	                "s": { "type": "uri", "value": annotationId },
+	                "o": {
+	                    "datatype": "http://www.w3.org/2001/XMLSchema#dateTimeStamp",
+	                    "type": "literal",
+	                    "value": new Date().toISOString()
+	                }
+	            }];
 
-	        var user = [{ "p": { "type": "uri", "value": "oa:annotatedBy" },
-	            "g": { "type": "uri", "value": self.defaultGraph },
-	            "s": { "type": "uri", "value": annotationId },
-	            "o": { "type": "uri", "value": self.userId } } // NOTE: describe <o> query
-	        ];
+	            var user = [{
+	                "p": { "type": "uri", "value": "oa:annotatedBy" },
+	                "g": { "type": "uri", "value": self.defaultGraph },
+	                "s": { "type": "uri", "value": annotationId },
+	                "o": { "type": "uri", "value": self.userId }
+	            } // NOTE: describe <o> query
+	            ];
 
-	        var insert = SPARQL.bindingsToInsert(_.flatten(oa, date, user, target, bindings).map(function (gspo) {
-	            return gspo.g.value ? gspo : SPARQL.gspoToBinding(gspo);
-	        }));
-	        _this.model.execute(insert);
+	            var insert = SPARQL.bindingsToInsert(_.flatten(oa, date, user, target, bindings).map(function (gspo) {
+	                return gspo.g.value ? gspo : SPARQL.gspoToBinding(gspo);
+	            }));
+	            result = _this.model.execute(insert);
+	        }
+	        return result;
 	    };
 	};
 
