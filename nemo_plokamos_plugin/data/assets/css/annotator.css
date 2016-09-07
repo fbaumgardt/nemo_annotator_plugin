@@ -144,7 +144,12 @@ pre {
     color: #999
 }
 
+.tt-menu:not(.tt-open) {
+    display:none !important;
+}
+
 .tt-menu {
+    position: absolute;
     width: 100%;
     margin: 12px 0;
     padding: 8px 0;
