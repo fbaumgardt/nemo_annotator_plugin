@@ -2,7 +2,7 @@
 
 {% block article %}
 {% include "nemo_oauth_plugin::user.html" %}
-<article id="plokamos-main" data-urn="urn:cts:{{url['collection']}}:{{url['textgroup']}}.{{url['work']}}.{{url['version']}}:{{url['passage_identifier']}}"
+<article id="annotator-main" data-urn="urn:cts:{{url['collection']}}:{{url['textgroup']}}.{{url['work']}}.{{url['version']}}:{{url['passage_identifier']}}"
          data-sparql-endpoint="/plokamos/assets/json/sparql-result.json"
          data-sparql-update-endpoint="{{ update_endpoint }}" data-sparql-select-endpoint="{{ select_endpoint }}" data-user="{{session['oauth_user_uri']}}">
 
@@ -40,7 +40,7 @@
 <link rel="stylesheet" href="/plokamos/assets/css/annotator.css">
 <script type="text/javascript">
     $(window).load(function() {
-        (new Plokamos(document.getElementById('plokamos-main'))).initialize()
+        (new Plokamos(document.getElementById('annotator-main'))).initialize()
     })
 </script>
 {% endblock %}
