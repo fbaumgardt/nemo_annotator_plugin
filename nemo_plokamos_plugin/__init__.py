@@ -6,8 +6,8 @@ import re
 from nemo_oauth_plugin import NemoOauthPlugin
 
 
-class AnnotatorPlugin(PluginPrototype):
-    """ Perseids Annotator Plugin for Nemo
+class PlokamosPlugin(PluginPrototype):
+    """ Perseids Plokamos Annotator Plugin for Nemo
 
     :param annotation_update_endpoint
     :type URL of the annotation store's update endpoint
@@ -21,16 +21,16 @@ class AnnotatorPlugin(PluginPrototype):
     """
     HAS_AUGMENT_RENDER = True
     TEMPLATES = {
-        "annotator": resource_filename("nemo_annotator_plugin", "data/templates")
+        "plokamos": resource_filename("nemo_plokamos_plugin", "data/templates")
     }
 
     ROUTES = PluginPrototype.ROUTES + [
-        ("/annotator/assets/<path:filename>", "r_annotator_assets", ["GET"]),
-        ("/annotator/proxy", "r_annotator_proxy", ["GET","POST"])
+        ("/plokamos/assets/<path:filename>", "r_plokamos_assets", ["GET"]),
+        ("/plokamos/proxy", "r_plokamos_proxy", ["GET","POST"])
     ]
 
     def __init__(self, annotation_update_endpoint, annotation_select_endpoint, *args, **kwargs):
-        super(AnnotatorPlugin, self).__init__(*args, **kwargs)
+        super(PlokamosPlugin, self).__init__(*args, **kwargs)
         self.__annotation_update_endpoint__ = annotation_update_endpoint
         self.__annotation_select_endpoint__ = annotation_select_endpoint
 
@@ -45,21 +45,21 @@ class AnnotatorPlugin(PluginPrototype):
     def render(self, **kwargs):
         update = kwargs
         if "template" in kwargs and kwargs["template"] == "main::text.html":
-            update["template"] = "annotator::text.html"
+            update["template"] = "plokamos::text.html"
             update["text_passage"] = Markup(' '.join([ x.strip() for x in kwargs["text_passage"].splitlines() ]))
             update["update_endpoint"] = self.annotation_update_endpoint
             update["select_endpoint"] = self.annotation_select_endpoint
         return update
 
-    def r_annotator_assets(self, filename):
+    def r_plokamos_assets(self, filename):
         """ Routes for assets
         :param filename: Filename in data/assets to retrievee
         :return: Content of the file
         """
-        return send_from_directory(resource_filename("nemo_annotator_plugin", "data/assets"), filename)
+        return send_from_directory(resource_filename("nemo_plokamos_plugin", "data/assets"), filename)
 
     @NemoOauthPlugin.oauth_required
-    def r_annotator_proxy(self):
+    def r_plokamos_proxy(self):
         """ Proxy to write to the annotation store
 
         :return: response from the remote query store

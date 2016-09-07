@@ -1,17 +1,20 @@
 from setuptools import setup, find_packages
 
 setup(
-    name='nemo_annotator_plugin',
+    name='nemo_plokamos_plugin',
     version="0.0.1",
     packages=find_packages(exclude=["examples", "tests"]),
-    url='https://github.com/fbaumgardt/nemo_annotator_plugin',
+    url='https://github.com/perseids-project/nemo_plokamos_plugin',
     license='GNU GPL',
     author='Frederik Baumgardt',
     author_email='baumgardt@informatik.uni-leipzig.de',
-    description='Plugin for Capitains Nemo to load Perseids Annotator on passage page',
-    test_suite="tests",
+    maintainer='Bridget Almas',
+    maintainer_email='balmas@gmail.com',
+    description= "Plugin for Capitains Nemo to load Perseids Plokamos Annotator on passage page",
+                 test_suite="tests",
     install_requires=[
-        "flask_nemo>=1.0.0b1"
+        "flask_nemo>=1.0.0b1",
+        "nemo-oauth-plugin>=0.0.4"
     ],
     tests_require=[
         "flask_nemo>=1.0.0b1"
