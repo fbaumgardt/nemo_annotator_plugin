@@ -244,3 +244,15 @@ div.btn-discard {
     right:0px;
     background-color: gold;
 }
+
+.spinner {
+    background-color: gold;
+}
+
+.okay {
+    background-color: green;
+}
+
+.failure {
+    background-color: red;
+}

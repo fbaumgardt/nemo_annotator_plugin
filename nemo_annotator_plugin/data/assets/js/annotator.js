@@ -27590,7 +27590,7 @@
 	                inner.resolve();
 	            });
 	            inner.promise().then(function () {
-	                return _this.execute(_this.upstream);
+	                return _this.execute(_$1.flatten(_this.upstream));
 	            }).then(function () {
 	                return _this.store.registeredGraphs(function (e, g) {
 	                    _this.namedDataset = _$1.uniq(_$1.map(g, function (x) {
@@ -27611,7 +27611,7 @@
 
 	            var source = endpoints.read || endpoints.query || "/";
 	            var promise = source.slice(-5) === '.json' ? require$$0.getJSON(source) : oaQuery(source, urn);
-	            // TODO: should be done in its own class, resulting in promise for store, which gets assigned to this.store
+	            // todo: should be done in its own class, resulting in promise for store, which gets assigned to this.store
 	            return promise.then(function (data) {
 	                return SPARQL.bindingsToInsert(data.results.bindings);
 	            }).then(function (data) {
@@ -27624,17 +27624,6 @@
 	        value: function execute(sparql) {
 	            return this.execute(sparql);
 	        }
-	    }, {
-	        key: 'update',
-	        value: function update(triple) {}
-	    }, {
-	        key: 'save',
-	        value: function save(endpoint) {
-	            var target = endpoint;
-	        }
-	    }, {
-	        key: 'persist',
-	        value: function persist(endpoint) {}
 	    }, {
 	        key: 'reset',
 	        value: function reset() {
@@ -40094,7 +40083,7 @@
 
 	    var body = app.anchor;
 	    var self = this;
-	    var globalViewBtn = require$$0('<div class="btn btn-circle" id="global-view-btn" style="position: fixed; top:15%; right:5%; z-index:1000; background-color:black;"/>');
+	    var globalViewBtn = require$$0('<div class="btn btn-circle" id="global-view-btn" style="position: fixed; top:15%; right:5%; z-index:1000; background-color:black; color:white;"><span class="glyphicon glyphicon-link"></span></span></div>');
 	    var globalView = require$$0('<div class="well" id="global-view" style="position:fixed; top:10%; left:12.5%; width:75%; height:40%; z-index:1000; display:none;"/>');
 	    body.append(globalViewBtn);
 	    body.append(globalView);
@@ -41396,7 +41385,9 @@
 	                if (text.trim()) {
 	                    editing.text(SNAP.label(text)); // <-- todo: generalize for other ontologies
 	                    triple.addClass('update');
-	                    triple.data(editing.data('token'), text);
+	                    triple.get().forEach(function (elem) {
+	                        return elem.setAttribute("data-" + editing.data('token'), text);
+	                    });
 	                }
 	                editing.removeClass('editing');
 	            });
@@ -41609,28 +41600,31 @@
 
 	        // NOTE: APPLYING EDITS BELOW
 
-	        body.html('<span class="spinner"/>');
-
-	        annotator.drop(delete_graphs).then(function () {
+	        body.html('<span class="spinner">JUST A SEC!</span>');
+	        var acc = [];
+	        annotator.drop(delete_graphs).then(function (res) {
+	            acc.push(res);
 	            return annotator.delete(_$1.concat(delete_triples, delete_graphs.map(function (id) {
 	                return annotations[id];
 	            })));
-	        }).then(function () {
+	        }).then(function (res) {
+	            acc.push(res);
 	            return annotator.update(_$1.flatten(update_triples.map(function (t) {
 	                return SNAP.expand()({ g: t[0], s: t[1], p: t[2], o: t[3] }, annotations);
 	            })), _$1.flatten(update_triples.map(function (t) {
 	                return SNAP.expand()({ g: t[0], s: t[4], p: t[5], o: t[6] }, annotations);
 	            })));
-	        }).then(function () {
+	        }).then(function (res) {
+	            acc.push(res);
 	            return annotator.create(cite, create_triples);
-	        }).then(function () {
-	            return annotator.apply();
+	        }).then(function (res) {
+	            return annotator.apply(_$1.flatten(acc.concat(res)));
 	        });
 
 	        // todo: this can be improved; the goal is to take a single step in history
 
-	        body.html('<span class="okay"/>');
-	        body.html('<span class="failure"/>');
+	        body.html('<span class="okay">OKAY!</span>');
+	        body.html('<span class="failure">OH NO!</span>');
 	    });
 
 	    modal.update = function (data, newSelector) {
@@ -41909,7 +41903,7 @@
 	    this.delete = function (deletions) {
 	        return _.flatten(deletions || []).length ? _this.model.execute(SPARQL.bindingsToDelete(_.flatten(deletions).map(function (gspo) {
 	            return gspo.g.value ? gspo : SPARQL.gspoToBinding(gspo);
-	        }))) : undefined;
+	        }))) : [];
 	    };
 
 	    /**
@@ -42025,8 +42019,15 @@
 	        return result;
 	    };
 
-	    this.apply = function (promises) {
-	        _this.applicator.reset();
+	    this.apply = function (resolved) {
+	        // check if all successful (what about drop?)
+	        // if success, map to sparql and add sparql to history
+	        // else reset model
+	        _this.history.add(resolved.map(function (r) {
+	            return r.sparql;
+	        }));
+	        _this.history.commit();
+	        // this.applicator.reset()
 	    };
 	};
 
@@ -42034,6 +42035,7 @@
 	    function History(app) {
 	        classCallCheck(this, History);
 
+	        this.app = app;
 	        this.model = app.model;
 	        this.applicator = app.applicator;
 	        this.commands = [];
@@ -42044,7 +42046,8 @@
 	        key: 'undo',
 	        value: function undo() {
 	            this.index -= 1;
-	            return this.commands.slice(0, this.index);
+	            this.model.reset();
+	            return this.model.execute(_.flatten(this.commands.slice(0, this.index)));
 	        }
 	    }, {
 	        key: 'redo',
@@ -42075,6 +42078,40 @@
 	            return this.model.reset().then(function () {
 	                return _this2.applicator.reset();
 	            });
+	        }
+	    }, {
+	        key: 'commit',
+	        value: function commit(source) {
+	            var _this3 = this;
+
+	            var endpoint = this.app.getEndpoint().write;
+	            var mime = "application/sparql-update";
+	            var commands = _.chain(this.commands.slice(0, this.index)).flatten().value();
+	            var sequence = commands.slice().reverse();
+
+	            // TODO: possibly aggregate the responses
+	            // TODO: do DROP last, because it cannot be reverted (easily)
+	            var response = _.reduce(commands, function (previous, current) {
+	                return previous.then(function (success) {
+	                    if (success) sequence.pop(); // we keep a register of outstanding operations
+	                    if (source && source.progress) source.progress(1 - sequence.length / commands.length);
+	                    return require$$0.ajax({ url: endpoint, type: 'POST', data: current, contentType: mime });
+	                }, function (failure) {
+	                    return require$$0.Deferred().reject(sequence).promise();
+	                });
+	            }, require$$0.Deferred().resolve().promise());
+	            response.then(function (success) {
+	                _this3.model.upstream.push(_this3.commands.slice(0, _this3.index));
+	                _this3.reset();
+	            }, function (failure) {
+	                var successful = commands.slice(0, -1 * sequence.length);
+	                var failed = sequence.slice().reverse();
+	                // todo: recover structure of commands
+	                _this3.model.upstream.push(successful);
+	                _this3.commands = [failed];
+	                _this3.reset();
+	            });
+	            return response;
 	        }
 	    }]);
 	    return History;
@@ -45223,7 +45260,7 @@
 	    this.model = new Model(self);
 	    // keep this dynamically loaded for now
 	    this.getEndpoint = function () {
-	        return { read: self.anchor.data('sparql-select-endpoint'), write: self.anchor.data('sparql-update-endpoint'), query: self.anchor.data('sparql-endpoint') };
+	        return { query: self.anchor.data('sparql-endpoint'), read: self.anchor.data('sparql-select-endpoint'), write: self.anchor.data('sparql-update-endpoint') };
 	    };
 	    this.getUrn = function () {
 	        return self.anchor.data('urn');
