@@ -41763,7 +41763,7 @@
 	            el.find('#new_button').click(function (e) {
 	                var triple = $$1('.graph.new').find('.triple:not(.delete):last');
 	                // the following prevents the button from creating a new triple before the previous one has been completed
-	                if (!triple.length || triple.data('subject') && triple.data('predicate') && triple.data('object')) {
+	                if (!triple.length || triple.attr('data-subject') && triple.attr('data-predicate') && triple.attr('data-object')) {
 	                    var list = $$1(Mustache.render("{{> triple}}", Object.assign({}, { g: "", s: "", p: "", o: "" }, self.view), self.partials));
 	                    list.appendTo($$1('.graph.new'));
 	                    activate(list);
@@ -41772,12 +41772,8 @@
 	            el.find('input').each(function (i, e) {
 	                return $$1(e).typeahead({ minLength: 3, highlight: true }, { source: substringMatcher(names) });
 	            });
-	            el.find('.triple').keypress(function (e) {
-	                if (e.which === 13) {
-	                    var triple = $$1(e.target).closest('.triple');
-	                    var jqToken = $$1(e.target).closest('.token');
-	                    var token = jqToken.data('token');
-	                }
+	            el.find('.token').on('typeahead:select', function (e, text) {
+	                return $$1(e.currentTarget).find('pre').text(text);
 	            });
 	            el.find('.token pre').on("DOMSubtreeModified", function (e) {
 	                var target = $$1(e.target);
@@ -41990,23 +41986,23 @@
 	        }), uT.map(function (i, el) {
 	            return $$1(el).data('original-object');
 	        }), uT.map(function (i, el) {
-	            return $$1(el).data('subject');
+	            return $$1(el).attr('data-subject');
 	        }), uT.map(function (i, el) {
-	            return $$1(el).data('predicate');
+	            return $$1(el).attr('data-predicate');
 	        }), uT.map(function (i, el) {
-	            return $$1(el).data('object');
+	            return $$1(el).attr('data-object');
 	        }));
 
 	        var cT = body.find('.graph.new .triple:not(.delete)');
 	        var cite = Utils.cite(app.getUser() + app.getUrn(), Math.random().toString());
 	        var new_triples = _$1.flatten(_$1.zip(cT.map(function (i, el) {
-	            return $$1(el).data('subject');
+	            return $$1(el).attr('data-subject');
 	        }), cT.map(function (i, el) {
-	            return $$1(el).data('predicate');
+	            return $$1(el).attr('data-predicate');
 	        }), cT.map(function (i, el) {
-	            return $$1(el).data('object');
+	            return $$1(el).attr('data-object');
 	        })).filter(function (t) {
-	            return t[0] != NIL && t[1] != NIL && t[2] != NIL;
+	            return t[0] && t[1] && t[2];
 	        }).map(function (t) {
 	            return { g: cite, s: t[0], p: t[1], o: t[2] };
 	        }).map(function (t) {
