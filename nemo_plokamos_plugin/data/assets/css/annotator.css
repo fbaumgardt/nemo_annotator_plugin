@@ -1,55 +1,4 @@
-h1 {
-    font-family: 'EB Garamond';
-    font-size: 40px;
-    font-style: normal;
-    font-variant: normal;
-    font-weight: 500;
-    line-height: 44px;
-}
-h2 {
-     font-family: 'EB Garamond';
-     font-size: 35px;
-     font-style: normal;
-     font-variant: normal;
-     font-weight: 500;
-     line-height: 38px;
- }
-h3 {
-    font-family: 'EB Garamond';
-    font-size: 30px;
-    font-style: normal;
-    font-variant: normal;
-    font-weight: 500;
-    line-height: 33px;
-}
-body {
-    font-family: 'EB Garamond';
-    font-size: 20px;
-    font-style: normal;
-    font-variant: normal;
-    font-weight: 400;
-    line-height: 28.5714px;
-}
-blockquote {
-    font-family: 'EB Garamond';
-    font-size: 21px;
-    font-style: normal;
-    font-variant: normal;
-    font-weight: 400;
-    line-height: 30px;
-}
-pre {
-    font-family: 'EB Garamond';
-    font-size: 13px;
-    font-style: normal;
-    font-variant: normal;
-    font-weight: 400;
-    line-height: 18.5714px;
-}
-.perseids-annotation {
-    border-bottom: 2px dashed #337ab7;
-    cursor: pointer;
-}
+
 .ctsurn {
     font-family: 'EB Garamond';
     font-size: 13px;
@@ -69,9 +18,6 @@ pre {
 
 .end {
     height:100px;
-}
-.margintooltip {
-    font-family: 'EB Garamond';
 }
 
 .header {
@@ -105,12 +51,27 @@ pre {
     cursor: pointer;
 }
 
-.twitter-typeahead
-{
-    width:100%;
-    top:4px;
+/**
+ * Applicator
+ * Styling for annotation markers and data tooltips
+ */
+
+.perseids-annotation {
+    border-bottom: 2px dashed #337ab7;
+    cursor: pointer;
+}
+.margintooltip {
+    font-family: 'EB Garamond';
 }
 
+/**
+ * Typeahead
+ * Layout and decoration of input forms and autcomplete menus
+ */
+
+.twitter-typeahead {
+    width:100%;
+}
 .typeahead,
 .tt-query,
 .tt-hint {
@@ -125,31 +86,28 @@ pre {
     border-radius: 8px;
     outline: none;
 }
-
 .typeahead {
-    background-color: #fff;
+    cursor: pointer;
 }
-
 .typeahead:focus {
+    cursor: text;
     border: 2px solid #0097cf;
 }
-
 .tt-query {
     -webkit-box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.075);
     -moz-box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.075);
     box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.075);
 }
-
 .tt-hint {
-    color: #999
+    height:40px;
+    padding-left:13px;
+    color: #fe5623;
 }
-
 .tt-menu:not(.tt-open) {
     display:none !important;
 }
-
 .tt-menu {
-    position: absolute;
+    position:absolute;
     width: 100%;
     margin: 12px 0;
     padding: 8px 0;
@@ -163,32 +121,32 @@ pre {
     -moz-box-shadow: 0 5px 10px rgba(0,0,0,.2);
     box-shadow: 0 5px 10px rgba(0,0,0,.2);
 }
-
 .tt-suggestion {
     padding: 3px 20px;
     font-size: 18px;
     line-height: 24px;
 }
-
 .tt-suggestion:hover {
     cursor: pointer;
     color: #fff;
     background-color: #0097cf;
 }
-
 .tt-suggestion.tt-cursor {
     color: #fff;
     background-color: #0097cf;
 
 }
-
 .tt-suggestion p {
     margin: 0;
 }
 .tt-input {
     height:40px !important;
-    top:-5px !important;
 }
+
+/**
+ * NodeLink
+ * Styling nodes and links incl. :hover
+ */
 
 .node > circle {
     fill: #888;
@@ -208,56 +166,62 @@ line.link:hover {
     stroke: red;
 }
 
+/**
+ * Editor
+ * Styling of Editor GUI
+ */
 
-.triple {
-    position:relative;
-    overflow: hidden;
+.modal {
     margin:20px;
-    height:40px;
-    border-radius:5px;
-    border:1px solid lightgrey;
-    z-index:2;
-    box-sizing: border-box;
 }
-.component {
-    position: absolute;
-    top: 0px;
-    width: 100%;
-    height: 100%;
+
+#edit_modal > .well {
+    background-color: white;
+    padding: 0px;
 }
-div.up, div.btn-delete {
-    width: 50px;
-    padding: 5px;
-    text-align: center;
+.triple {
+    padding: 0px;
+    margin: 10px;
+}
+.sentence {
+    padding: 3px;
+    width:100%;
+    border-bottom-left-radius: 0px;
+    border-bottom-right-radius: 0px;
+    margin-bottom:0px;
+}
+.token {
+    padding: 2px !important;
+}
+.btn-delete {
+    padding-top:3px;
     cursor: pointer;
+    text-align:center;
+    background-color: #444;
+    color:#eee;
+    width:100%;
+    margin-top:0px;
+    border-bottom-left-radius:4px;
+    border-bottom-right-radius:4px;
 }
-div.content, div.display, div.edit, div.sentence, div.btn-accept {
-    left: 0px;
+.btn-delete:hover {
+    background-color: #ff1a1a;
 }
-input.component {
-    left: 50px;
+.modal-footer {
+    background-color: #444;
 }
-div.btn-delete {
-    right:0;
-    background-color:orangered;
-}
-div.btn-accept {
-    background-color: limegreen;
-    z-index:1;
-}
-div.btn-discard {
-    right:0px;
-    background-color: gold;
-}
+
+/**
+ * Query responses
+ * Elements to provide visual feedback to generated SPARQL queries
+ */
 
 .spinner {
     background-color: gold;
 }
-
 .okay {
     background-color: green;
 }
-
 .failure {
     background-color: red;
 }
