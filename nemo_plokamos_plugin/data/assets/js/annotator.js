@@ -27828,7 +27828,7 @@
 	                } else if (prop.startsWith("_:")) {
 	                    return { type: "bnode", value: prop };
 	                } else {
-	                    // todo: come back and use regex properly
+	                    // planned: come back and use regex properly
 	                    if (!prop.replace(/\d+/g, '')) {
 	                        return { type: "literal", datatype: "http://www.w3.org/2001/XMLSchema#int", value: prop };
 	                    } else if (prop.replace(/\d+/g, '').startsWith("--T::.")) {
@@ -27837,7 +27837,7 @@
 	                        return { type: "literal", value: prop };
 	                    }
 	                }
-	            } /* todo: switch for uri, literal, bnode with a regex (what about hypothesis?)*/);
+	            } /* planned: switch for uri, literal, bnode with a regex (what about hypothesis?)*/);
 	        }
 	    }, {
 	        key: "bindingToGspo",
@@ -27949,7 +27949,7 @@
 
 	            var source = endpoints.read || endpoints.query || "/";
 	            var promise = source.slice(-5) === '.json' ? $$1.getJSON(source) : oaQuery(source, urn);
-	            // todo: should be done in its own class, resulting in promise for store, which gets assigned to this.store
+	            // planned: should be done in its own class, resulting in promise for store, which gets assigned to this.store
 	            return promise.then(function (data) {
 	                return SPARQL.bindingsToInsert(data.results.bindings);
 	            }).then(function (data) {
@@ -40442,13 +40442,19 @@
 	    var body = app.anchor;
 	    var self = this;
 	    var globalViewBtn = $$1('<div class="btn btn-circle" id="global-view-btn" style="position: fixed; top:15%; right:5%; z-index:1000; background-color:black; color:white;"><span class="glyphicon glyphicon-link"></span></span></div>');
-	    var globalView = $$1('<div class="well" id="global-view" style="position:fixed; top:10%; left:12.5%; width:75%; height:40%; z-index:1000; display:none;"/>');
+	    var globalView = $$1('<div class="well" id="global-view" style="position:fixed; top:10%; left:12.5%; width:75%; height:40%; z-index:1000;"/>');
 	    body.append(globalViewBtn);
 	    body.append(globalView);
+	    globalView.css('display', 'none');
 	    globalViewBtn.mouseleave(function (e) {
-	        if (!globalViewBtn.keep) $$1('#global-view').css('display', 'none');
+	        if (!globalViewBtn.keep) {
+	            $$1('#global-view').css('display', 'none');self.force.stop();
+	        }
 	    });
 	    globalViewBtn.mouseenter(function (e) {
+	        if (!globalViewBtn.keep) {
+	            self.force.start();
+	        }
 	        $$1('#global-view').css('display', 'block');
 	    });
 	    globalViewBtn.click(function (e) {
@@ -40457,8 +40463,6 @@
 	    });
 	    globalViewBtn.keep = false;
 	    this.parent = globalView.get(0);
-	    this.width = globalView.width();
-	    this.height = globalView.height();
 
 	    this.USE_GRID = true;
 	    this.GRID_SIZE = 60;
@@ -40469,20 +40473,20 @@
 	    this.nodes = [];
 	    this.links = [];
 
-	    this.vis = d3$1.select(this.parent).append("svg:svg").attr("width", this.width).attr("height", this.height);
-	    this.force = d3$1.layout.force().size([this.width, this.height]).nodes(this.nodes).links(this.links).gravity(1).linkDistance(function (d) {
+	    this.vis = d3$1.select(this.parent).append("svg:svg").attr("width", "100%").attr("height", "100%");
+	    this.force = d3$1.layout.force().size([50, 50]).nodes(this.nodes).links(this.links).gravity(1).linkDistance(function (d) {
 	        return (1 - d.weight) * 100;
 	    }).charge(-3000).linkStrength(function (x) {
 	        return x.weight * 5;
 	    });
-	    this.grid = function (width, height) {
+	    this.grid = function () {
 	        return {
 	            cells: [],
 
 	            init: function init() {
 	                this.cells = [];
-	                for (var i = 0; i < width / self.GRID_SIZE; i++) {
-	                    for (var j = 0; j < height / self.GRID_SIZE; j++) {
+	                for (var i = 0; i < $$1(self.parent).width() / self.GRID_SIZE; i++) {
+	                    for (var j = 0; j < $$1(self.parent).height() / self.GRID_SIZE; j++) {
 	                        // HACK: ^should be a better way to determine number of rows and cols
 	                        var cell;
 	                        switch (self.GRID_TYPE) {
@@ -40501,7 +40505,7 @@
 	                            case "HEXA":
 	                                cell = {
 	                                    x: i * self.GRID_SIZE + j % 2 * self.GRID_SIZE * .5,
-	                                    y: j * self.GRID_SIZE * .85
+	                                    y: j * self.GRID_SIZE
 	                                };
 	                                break;
 	                        }
@@ -40529,7 +40533,7 @@
 	            }
 
 	        };
-	    }(this.width, this.height);
+	    }();
 
 	    this.updateLink = function () {
 	        this.attr("x1", function (d) {
@@ -40563,7 +40567,17 @@
 	            return "translate(" + d.screenX + "," + d.screenY + ")";
 	        });
 	    };
+
+	    this.update_force_size = function () {
+	        var forceSize = self.force.size();
+	        var parent = $$1(self.parent);
+	        if (forceSize[0] != parent.width() || forceSize[1] != parent.height()) {
+	            self.force.size([parent.width(), parent.height()]);
+	        }
+	    };
+
 	    this.update_graph = function () {
+	        self.update_force_size();
 	        self.link = self.vis.selectAll("line.link").data(self.force.links(), function (d) {
 	            return d.source.id + "-" + d.target.id;
 	        });
@@ -40572,26 +40586,26 @@
 	        self.node = self.vis.selectAll("circle.node").data(self.force.nodes(), function (d) {
 	            return d.id;
 	        });
-	        self.node.enter().append("svg:circle").attr("class", function (d) {
+	        self.node.enter().append("svg:circle").attr("class", "node").attr("data-id", function (d) {
 	            return d.id;
 	        }).attr("r", 7).call(self.force.drag).on("click", function (d, i) {}).on("hover", function (d, i) {});
 	        self.node.exit().remove();
-	        self.force.start();
 	    };
 	    this.add = function (triples) {
 	        triples.forEach(function (t) {
+	            // we're looking for existing occurrences of resources from the new triple
 	            var subjectIdx = _$1.findIndex(self.nodes, ['id', t.s]);
 	            var objectIdx = _$1.findIndex(self.nodes, ['id', t.o]);
 	            var predicateIdx = subjectIdx + 1 && objectIdx + 1 ? _$1.findIndex(self.links, { source: subjectIdx, target: objectIdx }) : -1;
 	            if (subjectIdx + 1) {
 	                self.nodes[subjectIdx].graphs.push(t.g);
 	            } else {
-	                subjectIdx = self.nodes.push({ id: t.s, graphs: [t.g], x: Math.floor(self.width * Math.random()), y: Math.floor(self.height * Math.random()) }) - 1;
+	                subjectIdx = self.nodes.push({ id: t.s, graphs: [t.g], x: Math.floor($$1(self.parent).width() * Math.random()), y: Math.floor($$1(self.parent).height() * Math.random()) }) - 1;
 	            }
 	            if (objectIdx + 1) {
 	                self.nodes[objectIdx].graphs.push(t.g);
 	            } else {
-	                objectIdx = self.nodes.push({ id: t.o, graphs: [t.g], x: Math.floor(self.width * Math.random()), y: Math.floor(self.height * Math.random()) }) - 1;
+	                objectIdx = self.nodes.push({ id: t.o, graphs: [t.g], x: Math.floor($$1(self.parent).width() * Math.random()), y: Math.floor($$1(self.parent).height() * Math.random()) }) - 1;
 	            }
 	            if (predicateIdx + 1) {
 	                self.links[predicateIdx].graphs.push([t.g, t.p]);
@@ -40600,24 +40614,35 @@
 	            }
 	        });
 	        // todo
-	        // todo: take in triples instead of node/links and convert them with self.node indices
-	        // todo: remember that removing may require re-indexing!
+	        // planned: take in triples instead of node/links and convert them with self.node indices
+	        // planned: remember that removing may require re-indexing!
 	        // todo
 	        // self.nodes = this.nodes.concat(nodes||[])
 	        // self.links = this.links.concat(links||[])
 	        self.force.nodes(self.nodes).links(self.links);
-	        _this.update_graph();
+	        // this.update_graph()
 	        _this.update_graph();
 	    };
 	    this.remove = function (triples) {};
+
+	    this.reset = function () {
+	        _this.force.stop();
+	        self.nodes = [];
+	        self.links = [];
+	        self.force.nodes(self.nodes).links(self.links);
+	        self.vis.selectAll("line.link").data([]).exit().remove();
+	        self.vis.selectAll("circle.node").data([]).exit().remove();
+	    };
 	    this.update = function (triples) {};
 
 	    this.update_graph();
 	    this.force.on("tick", function () {
+	        self.update_force_size();
 	        self.vis.select("g.gridcanvas").remove();
 	        if (self.USE_GRID) {
 	            self.grid.init();
-	            var gridCanvas = self.vis.append("svg:g").attr("class", "gridcanvas").attr("width", self.width).attr("height", self.height);
+	            var gridCanvas = self.vis.append("svg:g").attr("class", "gridcanvas").attr("width", "100%").attr("height", "100%");
+
 	            _$1.each(self.grid.cells, function (c) {
 	                return gridCanvas.append("svg:circle").attr("cx", c.x).attr("cy", c.y).attr("r", 2).style("fill", "#555").style("opacity", .3);
 	            });
@@ -40627,7 +40652,6 @@
 	        self.link.call(self.updateLink);
 	    });
 	    this.grid.init();
-	    this.force.start();
 	};
 
 	var Utils = function () {
@@ -40759,7 +40783,7 @@
 	    }, {
 	        key: "hash",
 	        value: function hash(str) {
-	            return str.split("").reduce(function (a, b) {
+	            return JSON.stringify(str).split("").reduce(function (a, b) {
 	                a = (a << 5) - a + b.charCodeAt(0);return a & a;
 	            }, 0).toString(16).replace("-", "0");
 	        }
@@ -40787,7 +40811,7 @@
 	        var bindings = annotation ? annotation.filter(function (quad) {
 	            return quad.p.value.endsWith('has-bond') && quad.s.value === gspo.s || quad.p.value.endsWith('type') && quad.o.value === gspo.p || quad.p.value.endsWith('bond-with') && quad.o.value === gspo.o;
 	        }) : [];
-	        var bond_id = bindings.length % 3 || !annotation ? gspo.g + "-bond-" + Utils.hash(JSON.stringify(gspo)).slice(0, 4) : undefined; // todo: get bonds and check bond sizes individually
+	        var bond_id = bindings.length % 3 || !annotation ? gspo.g + "-bond-" + Utils.hash(JSON.stringify(gspo)).slice(0, 4) : undefined; // planned: get bonds and check bond sizes individually
 	        return bond_id ? [{ g: gspo.g, s: bond_id, p: "http://www.w3.org/1999/02/22-rdf-syntax-ns#type", o: gspo.p }, { g: gspo.g, s: gspo.s, p: "http://data.snapdrgn.net/ontology/snap#has-bond", o: bond_id }, { g: gspo.g, s: bond_id, p: "http://data.snapdrgn.net/ontology/snap#bond-with", o: gspo.o }].map(function (gspo) {
 	            return SPARQL.gspoToBinding(gspo);
 	        }) : bindings;
@@ -40894,7 +40918,7 @@
 	            return map[resource];
 	        }
 
-	        // todo: move labels into var
+	        // planned: move labels into var
 
 	    }, {
 	        key: 'expand',
@@ -40992,7 +41016,7 @@
 	    jqParent.append($('<div class="margintooltip" style="display: none;"></div>'));
 	    this.register = function (jqElement) {
 	        jqElement.hover(function (e) {
-	            // todo: stringify should check ontology and select simplifier or stringify raw (.value)
+	            // planned: stringify should check ontology and select simplifier or stringify raw (.value)
 	            function stringify(obj) {
 	                var simplified = SNAP.simplify()(obj);
 	                return _.flatten(_.values(simplified)).map(function (o) {
@@ -41006,7 +41030,7 @@
 	            var menuState = document.documentElement.clientWidth - parseInt($("#menu-container").css('width'));
 	            var deltaH = 0; // menuState ? 0 : parseInt($("#menu-container").css('height'));
 	            var deltaW = 0; // menuState ? parseInt($("#menu-container").css('width')) : 0;
-	            // todo: possibly factor out layout calculations into Utils or somewhere else?
+	            // planned: possibly factor out layout calculations into Utils or somewhere else?
 	            var parent = $(this.parentElement);
 	            var position = parent.position();
 	            var width = Math.min(100, position.left);
@@ -41682,7 +41706,7 @@
 	        });
 	    };
 
-	    // todo: deal with prefixes
+	    // planned: deal with prefixes
 	    this.getPrefix = function () {
 	        return "";
 	    };
@@ -41696,32 +41720,18 @@
 	            };
 	        } };
 	    this.partials = {
-	        triple: '\n                        <div class="triple" title="Graph:{{g}} Subject:{{s}} Predicate:{{p}} Object:{{o}}" data-original-subject="{{s}}" data-original-predicate="{{p}}" data-original-object="{{o}}" data-subject="{{s}}" data-predicate="{{p}}" data-object="{{o}}">\n                        \n                          <div class="content component" style="height:80px;">\n                              <div class="display component" style="height:40px;">\n                                  <div class="sentence component" style="overflow:scroll; white-space:nowrap; padding: 9px; background-color:white; z-index:1 text-align: center;">\n                                      <a href="#" class="object down" title="Change object" data-token="object">{{#label}}{{o}}{{/label}}</a>\n                                      <a href="#" class="predicate down" title="Change predicate" data-token="predicate">{{#label}}{{p}}{{/label}}</a>\n                                      <a href="#" class="subject down" title="Change subject" data-token="subject">{{#label}}{{s}}{{/label}}</a>\n                                  </div>\n                                  <div class="btn-delete component"><span class="glyphicon glyphicon-minus-sign" style="color:white;"></span></div>\n                              </div>\n                              <div class="edit component" style="top:40px; height:40px;">\n                                  <div class="btn-accept up component"><span class="glyphicon glyphicon-ok" style="color:white;"></span></div>\n                                  <input class="component" type="text" placeholder="Search...">\n                                  <div class="btn-discard up component"><span class="glyphicon glyphicon-remove"></span></div>\n                              </div>\n                          </div>\n                        </div>\n                        <div class="tt-menu"></div>\n                        \n                      ',
+	        triple: '\n              <div class="triple" title="Graph:{{g}} Subject:{{s}} Predicate:{{p}} Object:{{o}}" data-original-subject="{{s}}" data-original-predicate="{{p}}" data-original-object="{{o}}" data-subject="{{s}}" data-predicate="{{p}}" data-object="{{o}}">\n                <div class="sentence well container">\n                  <div class="token subject col-xs-12 col-md-4" data-token="subject">\n                    <input class="typeahead" placeholder="Subject" value="{{#label}}{{s}}{{/label}}">\n                  </div>\n                  <div class="token predicate col-xs-12 col-md-4" data-token="predicate">\n                    <input class="typeahead" placeholder="Predicate" value="{{#label}}{{p}}{{/label}}">\n                  </div>\n                  <div class="token object col-xs-12 col-md-4" data-token="object">\n                    <input class="typeahead" placeholder="Object" value="{{#label}}{{o}}{{/label}}">\n                  </div>\n                </div>\n                <div class="btn-delete"><span class="glyphicon glyphicon-trash"/></div>\n              </div>\n            ',
 	        graph: '<div class="graph old" data-graph="{{g}}">{{#triples}}{{> triple}}{{/triples}}</div>',
 	        graphs: '{{#annotations}}{{> graph}}{{/annotations}}',
 	        // done: add empty graph container to create template and add new triples to it.
 	        new: '<div class="graph new"/><div style="text-align: center; z-index:5;"><div id="new_button" class="btn btn-circle" style="background-color: #4AA02C; color: white; font-size: 1em; cursor: pointer;">+</div></div>',
 	        anchor: '<div class=\'anchor\'><span class="prefix selector">{{selector.prefix}}</span><span class="exact selector">{{selector.exact}}</span><span class="suffix selector">{{selector.suffix}}</span></div>'
-	    }; // todo: add selector and display anchor
+	    }; // planned: add selector and display anchor
 
 	    this.init = function (jqElement, data) {
 	        jqElement.html(Mustache.render("{{> graphs}}{{> new}}{{> anchor}}", Object.assign({}, data, self.view), self.partials));
 
 	        function activate(el) {
-	            el.find('.triple').hover(function (e) {
-	                $$1(e.currentTarget).find('.sentence').animate({ 'width': '-=50' }, { duration: 600 });
-	            }, function (e) {
-	                $$1(e.currentTarget).find('.sentence').animate({ 'width': '100%' }, { duration: 600 });
-	            });
-	            el.find('a.down').click(function (e) {
-	                // done: update placeholder
-	                $$1(e.target).addClass('editing');
-	                $$1(e.target).closest('.triple').find('.tt-input').attr('placeholder', e.target.text);
-	                $$1(e.target).closest('.content').animate({ 'top': '-40px' }, { duration: 400 });
-	            });
-	            el.find('.up').click(function (e) {
-	                $$1(e.target).closest('.content').animate({ 'top': '0px' }, { duration: 400 });
-	            });
 	            el.find('div.btn-delete').click(function (e) {
 	                // done: command list -> does the command list exist in the class or as data-attributes
 	                // note: no command list, just marked ui elements
@@ -41734,14 +41744,14 @@
 	                    } });
 	                triple.addClass('delete');
 	                if (!triple.siblings(':not(.delete)').length) triple.closest('.graph.old').addClass('delete');
-	                // todo: add to history -> nope, reset button maybe
+	                // planned: add to history -> nope, reset button maybe
 	            });
 	            el.find('.btn-accept').click(function (e) {
 	                var triple = $$1(e.target).closest('.triple');
 	                var text = triple.find('.tt-input').val();
 	                var editing = triple.find('a.editing');
 	                if (text.trim()) {
-	                    editing.text(SNAP.label(text)); // <-- todo: generalize for other ontologies
+	                    editing.text(SNAP.label(text)); // <-- planned: generalize for other ontologies
 	                    triple.addClass('update');
 	                    triple.get().forEach(function (elem) {
 	                        return elem.setAttribute("data-" + editing.data('token'), text);
@@ -41749,24 +41759,39 @@
 	                }
 	                editing.removeClass('editing');
 	            });
+	            // todo: rewrite btn-accept to apply label to entered values
 	            el.find('#new_button').click(function (e) {
-	                var NIL = "_________";
-	                var triple = $$1('.graph.new').find('.triple:last');
+	                var triple = $$1('.graph.new').find('.triple:not(.delete):last');
 	                // the following prevents the button from creating a new triple before the previous one has been completed
-	                if (!triple.length || triple.data('subject') != NIL && triple.data('predicate') != NIL && triple.data('object') != NIL) {
-	                    var list = $$1(Mustache.render("{{> triple}}", Object.assign({}, { g: NIL, s: NIL, p: NIL, o: NIL }, self.view), self.partials));
+	                if (!triple.length || triple.data('subject') && triple.data('predicate') && triple.data('object')) {
+	                    var list = $$1(Mustache.render("{{> triple}}", Object.assign({}, { g: "", s: "", p: "", o: "" }, self.view), self.partials));
 	                    list.appendTo($$1('.graph.new'));
 	                    activate(list);
 	                }
 	            });
 	            el.find('input').each(function (i, e) {
-	                return $$1(e).typeahead({ minLength: 3, highlight: true, menu: $$1(e).closest('.triple').next() }, { source: substringMatcher(names) });
+	                return $$1(e).typeahead({ minLength: 3, highlight: true }, { source: substringMatcher(names) });
+	            });
+	            el.find('.triple').keypress(function (e) {
+	                if (e.which === 13) {
+	                    var triple = $$1(e.target).closest('.triple');
+	                    var jqToken = $$1(e.target).closest('.token');
+	                    var token = jqToken.data('token');
+	                }
+	            });
+	            el.find('.token pre').on("DOMSubtreeModified", function (e) {
+	                var target = $$1(e.target);
+	                var triple = target.closest('.triple');
+	                var token = target.closest('.token').data('token');
+	                triple.get(0).setAttribute('data-' + token, target.text());
+	                if (triple.data(token + '-original') != triple.data(token)) triple.addClass('update');
+	                // set update class?
 	            });
 	            return el;
 	        }
 
 	        // jqElement.find('.tt-menu').insertAfter(this.closest('.group'))
-	        // todo: move autocomplete element (possibly have to add another container on the outside)
+	        // planned: move autocomplete element (possibly have to add another container on the outside)
 	        return activate(jqElement);
 	    };
 	};
@@ -41805,7 +41830,7 @@
 
 	var simplifyMap$1 = {
 	    "http://www.w3.org/ns/oa#TextQuoteSelector": function httpWwwW3OrgNsOaTextQuoteSelector(selectorTriples) {
-	        // todo: rename to bindings
+	        // planned: rename to bindings
 	        var selectorObject = {};
 	        selectorObject.type = _$1.find(selectorTriples, function (t) {
 	            return t.p.value.endsWith("type");
@@ -41836,7 +41861,7 @@
 	    "http://www.w3.org/ns/oa#TextQuoteSelector": function httpWwwW3OrgNsOaTextQuoteSelector(element, selection) {
 	        return TextQuoteAnchor$1.fromRange(element.tagName ? element : element.get(0), selection.getRangeAt(0)).toSelector();
 	    },
-	    "default": function _default() {} // todo: figure out sane default
+	    "default": function _default() {} // planned: figure out sane default
 	};
 
 	var OA = function () {
@@ -41879,7 +41904,7 @@
 	    var template = new Templates(labels);
 	    var button = $$1('<div class="btn btn-circle btn-info" id="edit_btn" style="display:none;" data-toggle="modal" data-target="#edit_modal"><span class="glyphicon glyphicon-paperclip"></span></div>');
 	    jqParent.append(button);
-	    var modal = $$1('<div id="edit_modal" class="modal fade in" style="display: none; "><div class="well"><div class="modal-header"><a class="close" data-dismiss="modal">×</a><h3>This is a Modal Heading</h3></div><div class="modal-body"></div><div class="modal-footer"><button type="button" class="btn btn-success" data-dismiss="modal">Create</button><button type="submit" class="btn btn-danger" data-dismiss="modal">Cancel</button></div></div>');
+	    var modal = $$1('<div id="edit_modal" class="modal fade in" style="display: none; "><div class="well"><div class="modal-header"><a class="close" data-dismiss="modal">×</a><h3>Annotation Editor</h3></div><div class="modal-body"></div><div class="modal-footer"><button type="button" class="btn btn-success" data-dismiss="modal">Create</button><button type="submit" class="btn btn-danger" data-dismiss="modal">Cancel</button></div></div>');
 	    jqParent.append(modal);
 
 	    jqParent.mouseup(function (event) {
@@ -41910,7 +41935,7 @@
 	    var apply_button = modal.find('.btn-success');
 	    button.click(function (e) {
 	        // done: show modal (automatically w/ data-toggle)
-	        // todo: hide button if clicked elsewhere
+	        // planned: hide button if clicked elsewhere
 	        button.css('display', 'none');
 	    });
 
@@ -41921,7 +41946,7 @@
 	     * 3. Modified annotation bodies
 	     * 4. Newly created annotation body
 	     */
-	    // todo: make button disabled by default, check if it needs to be enabled
+	    // planned: make button disabled by default, check if it needs to be enabled
 	    // note: user = $('body').data('user')
 	    // note: address = $('body').data('urn') || document.url
 	    // note: selector = modal.selector
@@ -41987,8 +42012,8 @@
 	        }).map(function (t) {
 	            return SNAP.expand()(t, annotations);
 	        }));
-	        // todo: add title and motivatedby
-	        // TODO: create title for new annotations in frontend, because it uses ontologies
+	        // planned: add title and motivatedby
+	        // todo: create title for new annotations in frontend, because it uses ontologies
 	        _$1.assign(selector, { id: cite + "#sel-" + Utils.hash(JSON.stringify(selector)).slice(0, 4) });
 	        var selector_triples = OA.expand(selector.type)(selector);
 	        var create_triples = new_triples.length ? _$1.concat(new_triples, selector_triples) : [];
@@ -42016,7 +42041,7 @@
 	            return annotator.apply(_$1.flatten(acc.concat(res)));
 	        });
 
-	        // todo: this can be improved; the goal is to take a single step in history
+	        // planned: this can be improved; the goal is to take a single step in history
 
 	        body.html('<span class="okay">OKAY!</span>');
 	        body.html('<span class="failure">OH NO!</span>');
@@ -42024,7 +42049,7 @@
 
 	    modal.update = function (data, newSelector) {
 	        // done: populate with graphs/triples
-	        // todo: apply ontology-specific transformations
+	        // planned: apply ontology-specific transformations
 	        var graphs = SNAP.simplify()(data);
 	        selector = newSelector;
 	        template.init(body, { annotations: Object.keys(graphs).map(function (k) {
@@ -42036,8 +42061,8 @@
 	    this.register = function (jqElement) {
 	        jqElement.click(function (e) {
 	            origin = jqElement;
-	            // todo: make button disappear again
-	            // todo: merge with selection tool (via a container for plugin buttons)
+	            // planned: make button disappear again
+	            // planned: merge with selection tool (via a container for plugin buttons)
 	            var menuState = document.documentElement.clientWidth - parseInt($$1("#menu-container").css('width'));
 	            var deltaH = menuState ? window.scrollY : window.scrollY - parseInt($$1("#menu-container").css('height'));
 	            var deltaW = menuState ? window.scrollX + parseInt($$1("#menu-container").css('width')) : window.scrollX;
@@ -42066,12 +42091,12 @@
 	        var Id = {
 	            fromSelector: function fromSelector(selector) {
 	                return (selector.prefix || "") + selector.exact + (selector.suffix || "");
-	            } // todo: remove TQS specific code, use Utils & OA, but make sure it's consistent between marking and retrieving spans
+	            } // planned: remove TQS specific code, use Utils & OA, but make sure it's consistent between marking and retrieving spans
 	        };
 
 	        var model = app.model;
 
-	        // todo: move this to an utility class, note: var escape = (s) => s.replace(/[-/\\^$*+?.()（）|[\]{}]/g, '\\$&').replace(/\$/g, '$$$$');
+	        // planned: move this to an utility class, note: var escape = (s) => s.replace(/[-/\\^$*+?.()（）|[\]{}]/g, '\\$&').replace(/\$/g, '$$$$');
 
 	        /**
 	         * Mark selector positions with span tag and add quads to data
@@ -42110,7 +42135,7 @@
 	                    });
 	                    var selectorType = _$1.find(selectorTriples, function (t) {
 	                        return t.p.value.endsWith("type");
-	                    }).o.value; // todo: replace as many endsWith as possible with tests on qualified names
+	                    }).o.value; // planned: replace as many endsWith as possible with tests on qualified names
 	                    var selectorObject = OA.simplify(selectorType)(selectorTriples);
 	                    var idFromSelector = Id.fromSelector(selectorObject);
 	                    var span = document.getElementById(idFromSelector) || _this.mark[selectorType](selectorObject);
@@ -42137,7 +42162,7 @@
 	                var grouped = elements.reduce(function (object, element) {
 	                    return _$1.merge(object, element.data('annotations'));
 	                }, {});
-	                var snap = SNAP.simplify()(grouped); // todo: move into nodelink, specify API for document plugins
+	                var snap = SNAP.simplify()(grouped); // planned: move into nodelink, specify API for document plugins
 	                var input = _$1.flatMap(snap, function (v, k) {
 	                    return v.map(function (o) {
 	                        return Object.assign(o, { g: k });
@@ -42161,6 +42186,11 @@
 	                }
 	                if (parent) parent.removeChild(p[0]);
 	            }
+	            if (!id) {
+	                _this.nodelink.reset();
+	            }
+	            // todo: generalize to reset all plugins
+	            // note: is this superfluous if we reset on edit anyways?
 	        };
 
 	        this.reset = function () {
@@ -42175,7 +42205,7 @@
 	        this.load();
 	    }
 
-	    // todo: move plugins into lists for elements (e.g. tooltip) and document (e.g. nodelink)
+	    // planned: move plugins into lists for elements (e.g. tooltip) and document (e.g. nodelink)
 
 	    createClass(Applicator, [{
 	        key: 'load',
@@ -42202,7 +42232,7 @@
 	    return Applicator;
 	}();
 
-	// todo: think about api - stacking commands, then executing them, in order to facilitate single step history?
+	// planned: think about api - stacking commands, then executing them, in order to facilitate single step history?
 
 	/**
 	 * Class for creation of annotations
@@ -42222,7 +42252,7 @@
 	    this.defaultGraph = "http://data.perseus.org/graphs/persons";
 	    this.userId = app.anchor.data('user');
 	    this.urn = app.anchor.data('urn');
-	    // TODO: add controls for history, save at bottom of anchor
+	    // todo: add controls for history, save at bottom of anchor
 	    this.anchor = app.anchor;
 	    this.model = app.model;
 	    this.applicator = app.applicator;
@@ -42261,6 +42291,7 @@
 	     * @param insertions
 	     */
 	    this.update = function (deletions, insertions) {
+	        // todo: remove old title, add new title
 	        return _this.model.execute(_.flatten([SPARQL.bindingsToDelete(_.flatten(deletions).map(function (gspo) {
 	            return gspo.g.value ? gspo : SPARQL.gspoToBinding(gspo);
 	        })), SPARQL.bindingsToInsert(_.flatten(insertions.concat(
@@ -42289,11 +42320,11 @@
 	    this.create = function (annotationId, bindings) {
 	        var result = $$1.Deferred().resolve([]).promise();
 	        if (bindings.length) {
-	            // todo: figure out default graph for use cases (maybe motivatedBy, by plugin or manual in anchor?)
+	            // planned: figure out default graph for use cases (maybe motivatedBy, by plugin or manual in anchor?)
 	            var selectorId = _.find(bindings, function (binding) {
 	                return binding.p.value === "http://www.w3.org/ns/oa#exact";
 	            }).s.value;
-	            // todo: make independent of selector type
+	            // planned: make independent of selector type
 	            var targetId = annotationId + "#target-" + Utils.hash(JSON.stringify(selectorId)).slice(0, 4);
 	            var oa = [{
 	                "g": { "type": "uri", "value": self.defaultGraph },
@@ -42327,7 +42358,7 @@
 	                "g": { "type": "uri", "value": self.defaultGraph },
 	                "s": { "type": "uri", "value": targetId },
 	                "o": { "type": "uri", "value": "http://www.w3.org/ns/oa#SpecificResource" }
-	            }, // todo: figure out alternatives for non-text targets
+	            }, // planned: figure out alternatives for non-text targets
 	            {
 	                "p": { "type": "uri", "value": "http://www.w3.org/ns/oa#hasSource" },
 	                "g": { "type": "uri", "value": self.defaultGraph },
@@ -42438,8 +42469,8 @@
 	            var commands = _.chain(this.commands.slice(0, this.index)).flatten().value();
 	            var sequence = commands.slice().reverse();
 
-	            // TODO: possibly aggregate the responses
-	            // TODO: do DROP last, because it cannot be reverted (easily)
+	            // todo: possibly aggregate the responses
+	            // todo: do DROP last, because it cannot be reverted (easily)
 	            var response = _.reduce(commands, function (previous, current) {
 	                return previous.then(function (success) {
 	                    if (success) sequence.pop(); // we keep a register of outstanding operations
@@ -42455,7 +42486,7 @@
 	            }, function (failure) {
 	                var successful = commands.slice(0, -1 * sequence.length);
 	                var failed = sequence.slice().reverse();
-	                // todo: recover structure of commands
+	                // planned: recover structure of commands
 	                _this3.model.upstream.push(successful);
 	                _this3.commands = [failed];
 	                _this3.reset();
