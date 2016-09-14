@@ -60,10 +60,16 @@
     border-bottom: 2px dashed #337ab7;
     cursor: pointer;
 }
-.margintooltip {
-    font-family: 'EB Garamond';
+.tt-label {
+    font-size: 0.8em;
+    border: 1px solid #444;
+    border-radius: 3px;
+    padding: 2px;
+    margin: 0px 2px;
 }
-
+.popover {
+    max-width: 67%;
+}
 /**
  * Typeahead
  * Layout and decoration of input forms and autcomplete menus
@@ -224,4 +230,30 @@ line.link:hover {
 }
 .failure {
     background-color: red;
+}
+
+/**
+ * Plokamos-Bar
+ */
+
+.plokamos-bar {
+    position: fixed;
+    bottom: 0px;
+    width: 100%;
+    height: 50px;
+    padding: 8px;
+    border-top: 2px solid #aaa;
+    background-color: #444;
+}
+
+.plokamos-bar .btn {
+    margin: 0px 2px;
+}
+
+.plokamos-navigation {
+    overflow-x: auto;
+}
+
+.plokamos-plugins {
+    text-align: right;
 }
