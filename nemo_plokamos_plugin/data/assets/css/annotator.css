@@ -65,11 +65,49 @@
     border: 1px solid #444;
     border-radius: 3px;
     padding: 2px;
-    margin: 0px 2px;
+    margin: 0px 0px;
 }
 .popover {
     max-width: 67%;
+    padding: 0px;
 }
+
+.popover-title {
+    border: 1px solid #eee;
+    margin-bottom: 10px;
+    background-color: #fff;
+}
+
+.popover-content {
+    padding: 0px;
+}
+
+.popover-list {
+    padding: 0px 5px;
+}
+
+.popover.top > .arrow:after {
+    border-top-color: #444;
+}
+
+.popover-footer {
+    padding: 0px 5px;
+    text-align: right;
+    overflow: scroll;
+    height: 25px;
+    width: 100%;
+    mind-width: 30px;
+    background-color: #444;
+    border-radius: 0 0 0.5rem 0.5rem;
+    border: 1px solid #444;
+    border-top-color: #777;
+    margin-top: 10px;
+}
+
+#popover-selection {
+    background-color: #A1CCFF;
+}
+
 /**
  * Typeahead
  * Layout and decoration of input forms and autcomplete menus
@@ -185,6 +223,14 @@ line.link:hover {
     background-color: white;
     padding: 0px;
 }
+
+#edit_btn {
+    font-size: 0.5em;
+    color: red;
+    background-color: #777;
+    padding: 2px 10px;
+}
+
 .triple {
     padding: 0px;
     margin: 10px;
