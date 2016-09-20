@@ -192,12 +192,12 @@
  * Styling nodes and links incl. :hover
  */
 
-.node > circle {
+circle.node {
     fill: #888;
     stroke: white;
     stroke-width: 4;
 }
-.node:hover > circle {
+circle.node:hover {
     fill: red;
 }
 line.link {
