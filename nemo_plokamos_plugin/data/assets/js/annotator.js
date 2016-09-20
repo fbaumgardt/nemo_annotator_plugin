@@ -44257,7 +44257,7 @@
 	    var template = new Templates(labels);
 	    var button = $$1('<div class="btn" id="edit_btn" data-toggle="modal" data-target="#edit_modal"><span class="glyphicon glyphicon-cog"></span></div>');
 	    $$1('body').on('shown.bs.popover', function (e) {
-	        return $$1('.popover-footer').append(button);
+	        return $$1('#' + e.target.getAttribute('aria-describedby')).find('.popover-footer').append(button);
 	    });
 	    var modal = $$1('<div id="edit_modal" class="modal fade in" style="display: none; "><div class="well"><div class="modal-header"><a class="close" data-dismiss="modal">×</a><h3>Annotation Editor</h3></div><div class="modal-body"></div><div class="modal-footer"><button type="button" class="btn btn-success" data-dismiss="modal">Create</button><button type="submit" class="btn btn-danger" data-dismiss="modal">Cancel</button></div></div>');
 	    jqParent.append(modal);
@@ -44277,11 +44277,6 @@
 
 	            var selector = OA.create("http://www.w3.org/ns/oa#TextQuoteSelector")(jqParent, selection);
 
-	            // var menuState = document.documentElement.clientWidth - parseInt($("#menu-container").css('width'))
-	            // var deltaH = menuState ? window.scrollY+15 : window.scrollY-parseInt($("#menu-container").css('height'))+15;
-	            // var deltaW = menuState ? window.scrollX+parseInt($("#menu-container").css('width'))-10 : window.scrollX-10;
-	            // button.css({display:"block",position:"absolute",left:event.clientX-deltaW,top:event.clientY+deltaH});
-
 	            modal.update({}, selector);
 	            origin = { data: function data() {
 	                    return {};
@@ -44289,7 +44284,7 @@
 	            span = document.createElement('span');
 	            span.setAttribute('id', 'popover-selection');
 	            wrapRangeText(span, selection.getRangeAt(0));
-	            // todo: wrap selection x
+
 	            $$1('#popover-selection').popover({
 	                container: "body",
 	                html: "true",
@@ -44299,15 +44294,8 @@
 	                content: "<div class='popover-footer'/>"
 	            });
 	            $$1('#popover-selection').popover('show');
-	            // $('#popover-selection').popover('destroy')
-
-	            // todo: correctly size popover after addition of plugin buttons
-	        } // todo: remove popover? remove span?
-	        // else button.css({display:"none"});
+	        }
 	    });
-
-	    // move starter here and append to jqParent
-
 
 	    var body = modal.find('.modal-body');
 	    var apply_button = modal.find('.btn-success');
@@ -44319,16 +44307,8 @@
 	     * 3. Modified annotation bodies
 	     * 4. Newly created annotation body
 	     */
-	    // planned: make button disabled by default, check if it needs to be enabled
-	    // note: user = $('body').data('user')
-	    // note: address = $('body').data('urn') || document.url
-	    // note: selector = modal.selector
-	    // note: data =
-	    // note: delete_graphs contains a list of annotation ids to delete [String]
 	    apply_button.click(function (e) {
 	        var annotator = _this.annotator();
-	        // NOTE: COMPUTING EDITS
-
 	        var annotations = origin.data('annotations');
 	        var dG = body.find('.graph.old.delete');
 	        var delete_graphs = dG.map(function (i, el) {
@@ -44390,9 +44370,7 @@
 	        var selector_triples = OA.expand(selector.type)(selector);
 	        var create_triples = new_triples.length ? _$1.concat(new_triples, selector_triples) : [];
 
-	        // NOTE: APPLYING EDITS BELOW
-
-	        body.html('<span class="spinner">JUST A SEC!</span>');
+	        body.html('<span class="spinner"></span>');
 	        var acc = [];
 	        annotator.drop(delete_graphs).then(function (res) {
 	            acc.push(res);
@@ -44415,27 +44393,23 @@
 
 	        // planned: this can be improved; the goal is to take a single step in history
 
-	        body.html('<span class="okay">OKAY!</span>');
-	        body.html('<span class="failure">OH NO!</span>');
+	        body.html('<span class="okay"></span>');
+	        body.html('<span class="failure"></span>');
 	        origin.popover('hide');
 	    });
 
 	    modal.update = function (data, newSelector) {
-	        // done: populate with graphs/triples
 	        // planned: apply ontology-specific transformations
 	        var graphs = SNAP.simplify()(data);
 	        selector = newSelector;
 	        template.init(body, { annotations: Object.keys(graphs).map(function (k) {
 	                return { g: k, triples: graphs[k] };
 	            }) });
-	        // interface.button.click -> get selections and create sparql to delete them
 	    };
 
 	    this.register = function (jqElement) {
 	        jqElement.click(function (e) {
 	            origin = jqElement;
-	            // planned: make button disappear again
-	            // planned: merge with selection tool (via a container for plugin buttons)
 	            modal.update(jqElement.data('annotations'), jqElement.data('selector'));
 	        });
 	    };
