@@ -30309,7 +30309,7 @@
 	                inner.resolve();
 	            });
 	            inner.promise().then(function () {
-	                return _this.execute(_$1.flatten(_this.upstream));
+	                return _this.execute(_$1.flattenDeep(_this.upstream));
 	            }).then(function () {
 	                return _this.store.registeredGraphs(function (e, g) {
 	                    _this.namedDataset = _$1.uniq(_$1.map(g, function (x) {
@@ -42960,7 +42960,7 @@
 	    this.update_graph = function () {
 	        self.update_force_size();
 	        self.link = self.vis.selectAll("line.link").data(self.force.links(), function (d) {
-	            return d.source.id + "-" + d.target.id;
+	            return d.source + "-" + d.target;
 	        });
 	        self.link.enter().insert("svg:line", ".node").attr("class", "link").on("click", function (d, i) {}).on("hover", function (d, i) {});
 	        self.link.exit().remove();
@@ -43393,23 +43393,28 @@
 	var Tooltip = function Tooltip(app) {
 	    classCallCheck(this, Tooltip);
 
+
+	    $(document).on('click', '.popover-footer > .btn', function (e) {
+	        var id = $('.popover-source').data('source-id');
+	        $(document.getElementById(id)).popover('hide');
+	    });
 	    this.register = function (jqElement) {
 	        // planned: stringify should check ontology and select simplifier or stringify raw (.value)
 	        function stringify(obj) {
 	            var simplified = SNAP.simplify()(obj);
-	            return _.flatten(_.values(simplified)).map(function (o) {
-	                return "<span class='tt-label tt-subject'>" + SNAP.label(o.s) + "</span><span class='tt-label tt-predicate'>" + SNAP.label(o.p) + "</span><span class='tt-label tt-object'>" + SNAP.label(o.o) + "</span>";
-	            }).join("<br>");
+	            return "<span class='popover-source' data-source-id='" + jqElement.attr('id') + "'></span><div class='popover-list'>" + _.flatten(_.values(simplified)).map(function (o) {
+	                return "<span class='tt-label tt-subject'>" + SNAP.label(o.s) + "</span>-<span class='tt-label tt-predicate'>" + SNAP.label(o.p) + "</span>-<span class='tt-label tt-object'>" + SNAP.label(o.o) + "</span>";
+	            }).join("<br>") + "</div><div class='popover-footer'/>";
 	        }
 	        var graphs = jqElement.data('annotations');
-	        var description = stringify(graphs); //attr(field)
+	        var content = stringify(graphs); //attr(field)
 	        jqElement.popover({
 	            container: "body",
 	            html: "true",
 	            trigger: "hover | click",
 	            placement: "auto top",
 	            title: jqElement.data('selector').exact,
-	            content: description
+	            content: content
 	        });
 	    };
 	};
@@ -44250,30 +44255,55 @@
 	    var selector = {};
 	    var labels = SNAP.labels;
 	    var template = new Templates(labels);
-	    var button = $$1('<div class="btn btn-circle btn-info" id="edit_btn" style="display:none;" data-toggle="modal" data-target="#edit_modal"><span class="glyphicon glyphicon-paperclip"></span></div>');
-	    jqParent.append(button);
+	    var button = $$1('<div class="btn" id="edit_btn" data-toggle="modal" data-target="#edit_modal"><span class="glyphicon glyphicon-cog"></span></div>');
+	    $$1('body').on('shown.bs.popover', function (e) {
+	        return $$1('.popover-footer').append(button);
+	    });
 	    var modal = $$1('<div id="edit_modal" class="modal fade in" style="display: none; "><div class="well"><div class="modal-header"><a class="close" data-dismiss="modal">×</a><h3>Annotation Editor</h3></div><div class="modal-body"></div><div class="modal-footer"><button type="button" class="btn btn-success" data-dismiss="modal">Create</button><button type="submit" class="btn btn-danger" data-dismiss="modal">Cancel</button></div></div>');
 	    jqParent.append(modal);
 
-	    jqParent.mouseup(function (event) {
+	    jqParent.mouseup(function (e) {
+	        var pos = $$1('#popover-selection');
+	        if (pos) {
+	            pos.popover('destroy');
+	            pos.replaceWith(pos.text());
+	        }
 
 	        var selection = document.getSelection();
 
 	        // replace starter with
-	        if (selection && !selection.isCollapsed && button.css('display') === 'none' && modal.css('display') === 'none') {
+	        if (selection && !selection.isCollapsed && modal.css('display') === 'none') {
 	            // add selector to modal or button
 
 	            var selector = OA.create("http://www.w3.org/ns/oa#TextQuoteSelector")(jqParent, selection);
 
-	            var menuState = document.documentElement.clientWidth - parseInt($$1("#menu-container").css('width'));
-	            var deltaH = menuState ? window.scrollY + 15 : window.scrollY - parseInt($$1("#menu-container").css('height')) + 15;
-	            var deltaW = menuState ? window.scrollX + parseInt($$1("#menu-container").css('width')) - 10 : window.scrollX - 10;
-	            button.css({ display: "block", position: "absolute", left: event.clientX - deltaW, top: event.clientY + deltaH });
+	            // var menuState = document.documentElement.clientWidth - parseInt($("#menu-container").css('width'))
+	            // var deltaH = menuState ? window.scrollY+15 : window.scrollY-parseInt($("#menu-container").css('height'))+15;
+	            // var deltaW = menuState ? window.scrollX+parseInt($("#menu-container").css('width'))-10 : window.scrollX-10;
+	            // button.css({display:"block",position:"absolute",left:event.clientX-deltaW,top:event.clientY+deltaH});
+
 	            modal.update({}, selector);
 	            origin = { data: function data() {
 	                    return {};
 	                } };
-	        } else button.css({ display: "none" });
+	            span = document.createElement('span');
+	            span.setAttribute('id', 'popover-selection');
+	            wrapRangeText(span, selection.getRangeAt(0));
+	            // todo: wrap selection x
+	            $$1('#popover-selection').popover({
+	                container: "body",
+	                html: "true",
+	                trigger: "manual",
+	                placement: "auto top",
+	                title: selector.exact,
+	                content: "<div class='popover-footer'/>"
+	            });
+	            $$1('#popover-selection').popover('show');
+	            // $('#popover-selection').popover('destroy')
+
+	            // todo: correctly size popover after addition of plugin buttons
+	        } // todo: remove popover? remove span?
+	        // else button.css({display:"none"});
 	    });
 
 	    // move starter here and append to jqParent
@@ -44281,11 +44311,6 @@
 
 	    var body = modal.find('.modal-body');
 	    var apply_button = modal.find('.btn-success');
-	    button.click(function (e) {
-	        // done: show modal (automatically w/ data-toggle)
-	        // planned: hide button if clicked elsewhere
-	        button.css('display', 'none');
-	    });
 
 	    /**
 	     * We are done editing and are now processing, in order:
@@ -44303,7 +44328,6 @@
 	    apply_button.click(function (e) {
 	        var annotator = _this.annotator();
 	        // NOTE: COMPUTING EDITS
-	        var NIL = "_________";
 
 	        var annotations = origin.data('annotations');
 	        var dG = body.find('.graph.old.delete');
@@ -44393,6 +44417,7 @@
 
 	        body.html('<span class="okay">OKAY!</span>');
 	        body.html('<span class="failure">OH NO!</span>');
+	        origin.popover('hide');
 	    });
 
 	    modal.update = function (data, newSelector) {
@@ -44411,10 +44436,6 @@
 	            origin = jqElement;
 	            // planned: make button disappear again
 	            // planned: merge with selection tool (via a container for plugin buttons)
-	            var menuState = document.documentElement.clientWidth - parseInt($$1("#menu-container").css('width'));
-	            var deltaH = menuState ? window.scrollY : window.scrollY - parseInt($$1("#menu-container").css('height'));
-	            var deltaW = menuState ? window.scrollX + parseInt($$1("#menu-container").css('width')) : window.scrollX;
-	            button.css({ display: "block", position: "absolute", left: e.clientX - deltaW, top: e.clientY + deltaH });
 	            modal.update(jqElement.data('annotations'), jqElement.data('selector'));
 	        });
 	    };
@@ -44754,108 +44775,117 @@
 	        _this.history.add(resolved.map(function (r) {
 	            return r.sparql;
 	        }));
-	        _this.history.commit();
-	        // this.applicator.reset()
+	        // this.history.commit()
+	        _this.applicator.reset();
 	    };
 	};
 
-	var History = function () {
-	    function History(app) {
-	        classCallCheck(this, History);
+	var History = function History(app) {
+	    var _this = this;
 
-	        this.app = app;
-	        this.backBtn = $$1('<button id="plokamos-back" class="btn" title="Undo" disabled><span class="glyphicon glyphicon-chevron-left"/></button>');
-	        this.forwardBtn = $$1('<button id="plokamos-forward" class="btn" title="Redo" disabled><span class="glyphicon glyphicon-chevron-right"/></button>');
-	        this.commitBtn = $$1('<button id="plokamos-commit" class="btn" title="Commit" disabled><span class="glyphicon glyphicon-cloud-upload"/></button>');
-	        this.app.bar.navigation.append(this.backBtn, this.forwardBtn, this.commitBtn);
-	        this.model = app.model;
-	        this.applicator = app.applicator;
-	        this.commands = [];
-	        this.index = 0;
-	    }
+	    classCallCheck(this, History);
 
-	    createClass(History, [{
-	        key: 'undo',
-	        value: function undo() {
-	            this.index -= 1;
-	            this.model.reset();
-	            this.forwardBtn.prop('disabled', false);
-	            if (!this.index) this.backBtn.prop('disabled', true);
-	            return this.model.execute(_.flatten(this.commands.slice(0, this.index)));
-	        }
-	    }, {
-	        key: 'redo',
-	        value: function redo() {
-	            this.index += 1;
-	            this.backBtn.prop('disabled', false);
-	            if (this.index === this.commands.length) this.forwardBtn.prop('disabled', true);
-	            return this.commands.slice(0, this.index);
-	            // todo: what needs to happen here?
-	        }
-	    }, {
-	        key: 'add',
-	        value: function add(cmd) {
-	            var _this = this;
+	    this.app = app;
+	    this.backBtn = $$1('<button id="plokamos-back" class="btn" title="Undo" disabled><span class="glyphicon glyphicon-chevron-left"/></button>');
+	    this.forwardBtn = $$1('<button id="plokamos-forward" class="btn" title="Redo" disabled><span class="glyphicon glyphicon-chevron-right"/></button>');
+	    this.commitBtn = $$1('<button id="plokamos-commit" class="btn" title="Commit" disabled><span class="glyphicon glyphicon-cloud-upload"/></button>');
+	    this.backBtn.click(function (e) {
+	        return _this.undo();
+	    });
+	    this.forwardBtn.click(function (e) {
+	        return _this.redo();
+	    });
+	    this.commitBtn.click(function (e) {
+	        return _this.commit();
+	    });
+	    this.app.bar.navigation.append(this.backBtn, this.forwardBtn, this.commitBtn);
+	    this.model = app.model;
+	    this.applicator = app.applicator;
+	    this.commands = [];
+	    this.index = 0;
 
-	            this.commands.splice(0, this.index);
-	            var cmds = cmd.constructor === Array ? cmd : [cmd];
-	            cmds.forEach(function (c) {
-	                return _this.commands.push(c);
-	            });
-	            this.index += cmds.length;
-	            return this.commands;
-	        }
-	    }, {
-	        key: 'reset',
-	        value: function reset() {
-	            var _this2 = this;
+	    this.undo = function () {
+	        _this.index -= 1;
+	        _this.model.reset().then(function () {
+	            return _this.model.execute(_.flatten(_this.commands.slice(0, _this.index)));
+	        }).then(function (result) {
+	            _this.applicator.reset();
+	            _this.forwardBtn.prop('disabled', false);
+	            if (!_this.index) {
+	                _this.backBtn.prop('disabled', true);
+	                _this.commitBtn.prop('disabled', true);
+	            }
+	        });
+	    };
 
-	            this.commands = [];
-	            this.index = 0;
-	            return this.model.reset().then(function () {
-	                return _this2.applicator.reset();
-	            });
-	        }
-	    }, {
-	        key: 'commit',
-	        value: function commit(source) {
-	            var _this3 = this;
+	    this.redo = function () {
+	        _this.index += 1;
+	        _this.model.reset().then(function () {
+	            return _this.model.execute(_.flatten(_this.commands.slice(0, _this.index)));
+	        }).then(function (result) {
+	            _this.applicator.reset();
+	            _this.backBtn.prop('disabled', false);
+	            _this.commitBtn.prop('disabled', false);
+	            if (_this.index === _this.commands.length) _this.forwardBtn.prop('disabled', true);
+	        });
+	    };
 
-	            var endpoint = this.app.getEndpoint().write;
-	            var mime = "application/sparql-update";
-	            var commands = _.chain(this.commands.slice(0, this.index)).flatten().value();
-	            var sequence = commands.slice().reverse();
+	    this.add = function (cmd) {
+	        _this.commands.splice(_this.index);
+	        var cmds = cmd.constructor === Array ? cmd : [cmd];
+	        _this.commands.push(cmds);
+	        _this.index += 1;
+	        _this.backBtn.prop('disabled', false);
+	        _this.commitBtn.prop('disabled', false);
+	        _this.forwardBtn.prop('disabled', true);
+	        return _this.commands;
+	    };
 
-	            // todo: possibly aggregate the responses
-	            // todo: do DROP last, because it cannot be reverted (easily)
-	            var response = _.reduce(commands, function (previous, current) {
-	                return previous.then(function (success) {
-	                    if (success) sequence.pop(); // we keep a register of outstanding operations
-	                    if (source && source.progress) source.progress(1 - sequence.length / commands.length);
-	                    return $$1.ajax({ url: endpoint, type: 'POST', data: current, contentType: mime });
-	                }, function (failure) {
-	                    return $$1.Deferred().reject(sequence).promise();
-	                });
-	            }, $$1.Deferred().resolve().promise());
-	            response.then(function (success) {
-	                _this3.model.upstream.push(_this3.commands.slice(0, _this3.index));
-	                _this3.reset();
+	    this.reset = function () {
+	        _this.commands = [];
+	        _this.index = 0;
+	        _this.backBtn.prop('disabled', true);
+	        _this.forwardBtn.prop('disabled', true);
+	        _this.commitBtn.prop('disabled', true);
+	        return _this.model.reset().then(function () {
+	            return _this.applicator.reset();
+	        });
+	    };
+
+	    this.commit = function (source) {
+	        var endpoint = _this.app.getEndpoint().write;
+	        var mime = "application/sparql-update";
+	        var commands = _.chain(_this.commands.slice(0, _this.index)).flatten().value();
+	        var sequence = commands.slice().reverse();
+
+	        // todo: possibly aggregate the responses
+	        // todo: do DROP last, because it cannot be reverted (easily)
+	        var response = _.reduce(commands, function (previous, current) {
+	            return previous.then(function (success) {
+	                if (success) sequence.pop(); // we keep a register of outstanding operations
+	                if (source && source.progress) source.progress(1 - sequence.length / commands.length);
+	                return $$1.ajax({ url: endpoint, type: 'POST', data: current, contentType: mime });
 	            }, function (failure) {
-	                var successful = commands.slice(0, -1 * sequence.length);
-	                var failed = sequence.slice().reverse();
-	                // planned: recover structure of commands
-	                _this3.model.upstream.push(successful);
-	                _this3.commands = [failed];
-	                _this3.reset();
+	                return $$1.Deferred().reject(sequence).promise();
 	            });
-	            return response;
-	        }
+	        }, $$1.Deferred().resolve().promise());
+	        response.then(function (success) {
+	            _this.model.upstream.push(_this.commands.slice(0, _this.index));
+	            _this.reset();
+	        }, function (failure) {
+	            var successful = commands.slice(0, -1 * sequence.length);
+	            var failed = sequence.slice().reverse();
+	            // planned: recover structure of commands
+	            _this.model.upstream.push(successful);
+	            _this.commands = [failed];
+	            _this.reset();
+	        });
+	        return response;
+	    };
+	}
 
-	        // planned: progress() function that moves a colored line across the plokamos-bar border
-
-	    }]);
-	    return History;
-	}();
+	// planned: progress() function that moves a colored line across the plokamos-bar border
+	;
 
 	var typeahead_bundle = createCommonjsModule(function (module, exports) {
 	/*!
