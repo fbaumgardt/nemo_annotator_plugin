@@ -42823,7 +42823,7 @@
 	    var body = app.anchor;
 	    var self = this;
 	    var globalViewBtn = $$1('\n          <button id="global-view-btn" class="btn">\n            <span class="glyphicon glyphicon-certificate"/>\n          </button>\n        ');
-	    var globalView = $$1('<div class="well" id="global-view" style="position:fixed; top:10%; left:12.5%; width:75%; height:40%; z-index:1000;"/>');
+	    var globalView = $$1('<div id="global-view" style="position:fixed; z-index:1000;"><div class="upper-half well" id="nodelink"></div><div class="lower-half panel panel-default" id="rdftable"></div></div>');
 	    app.bar.plugins.append(globalViewBtn);
 	    body.append(globalView);
 	    globalView.css('display', 'none');
@@ -42843,7 +42843,10 @@
 	        $$1('#global-view').css('display', 'block');
 	    });
 	    globalViewBtn.keep = false;
-	    this.parent = globalView.get(0);
+
+	    $$1('#rdftable').html('\n  <table class="table">\n    <tr style="font-weight:bold;">\n      <td>Subject</td>\n      <td>Predicate</td>\n      <td>Object</td>\n      <td>URN</td>\n    </tr>\n  </table>\n        ');
+
+	    this.parent = $$1('#nodelink').get(0);
 
 	    this.USE_GRID = true;
 	    this.GRID_SIZE = 60;
@@ -42964,12 +42967,26 @@
 	        });
 	        self.link.enter().insert("svg:line", ".node").attr("class", "link").on("click", function (d, i) {}).on("hover", function (d, i) {});
 	        self.link.exit().remove();
-	        self.node = self.vis.selectAll("circle.node").data(self.force.nodes(), function (d) {
+	        self.node = self.vis.selectAll("g.node").data(self.force.nodes(), function (d) {
 	            return d.id;
 	        });
-	        self.node.enter().append("svg:circle").attr("class", "node").attr("data-id", function (d) {
+	        var nodeEnter = self.node.enter().append("svg:g").attr("class", "node");
+	        nodeEnter.append("svg:circle").attr("data-id", function (d) {
 	            return d.id;
-	        }).attr("r", 7).call(self.force.drag).on("click", function (d, i) {}).on("hover", function (d, i) {});
+	        }).attr("r", 7).call(self.force.drag).on("click", function (d, i) {}).on("mouseover", function (d, i) {
+	            $$1('#rdftable tr').filter(function (j, e) {
+	                return j && $$1(e).text().indexOf(d.id.replace('http://data.perseus.org/people/', '')) === -1;
+	            }).css('display', 'none');
+	            $$1('#rdftable td').filter(function (j, e) {
+	                return j && $$1(e).text().indexOf(d.id.replace('http://data.perseus.org/people/', '')) + 1;
+	            }).css('color', 'red');
+	        }).on("mouseout", function (d, i) {
+	            $$1('#rdftable tr').css('display', '');
+	            $$1('#rdftable td').css('color', '');
+	        });
+	        nodeEnter.append("svg:text").text(function (d) {
+	            return d.id.replace('http://data.perseus.org/people/', '').replace('#this', '');
+	        }).attr('class', 'node-label').attr('text-anchor', 'middle');
 	        self.node.exit().remove();
 	    };
 	    this.add = function (triples) {
@@ -42991,8 +43008,12 @@
 	            if (predicateIdx + 1) {
 	                self.links[predicateIdx].graphs.push([t.g, t.p]);
 	            } else {
-	                predicateIdx = self.links.push({ source: subjectIdx, target: objectIdx, graphs: [[t.g, t.p]], weight: 1 }) - 1;
+	                predicateIdx = self.links.push({ source: subjectIdx, target: objectIdx, graphs: [[t.g, t.p]], weight: 0.5 }) - 1;
 	            }
+	        });
+
+	        triples.forEach(function (t) {
+	            $$1('#rdftable > .table').append('\n                    <tr>\n                        <td>' + t.s.replace('http://data.perseus.org/people/', '') + '</td>\n                        <td>' + t.p + '</td>\n                        <td>' + t.o.replace('http://data.perseus.org/people/', '') + '</td>\n                        <td>' + t.g.replace('http://data.perseus.org/collections/', '') + '</td>\n                    </tr>\n                ');
 	        });
 	        // todo
 	        // planned: take in triples instead of node/links and convert them with self.node indices
@@ -43013,6 +43034,7 @@
 	        self.force.nodes(self.nodes).links(self.links);
 	        self.vis.selectAll("line.link").data([]).exit().remove();
 	        self.vis.selectAll("circle.node").data([]).exit().remove();
+	        $$1('#rdftable > .table').html('\n                <tr style="font-weight:bold;">\n                  <td>Subject</td>\n                  <td>Predicate</td>\n                  <td>Object</td>\n                  <td>URN</td>\n                </tr>\n            ');
 	    };
 	    this.update = function (triples) {};
 
@@ -44068,6 +44090,12 @@
 	        return "";
 	    };
 
+	    this.updateValue = function (event, text) {
+	        var triple = $$1(event.target).closest('.triple').get(0);
+	        var token = $$1(event.target).closest('.token').data('token');
+	        triple.setAttribute('data-' + token, text);
+	        if (triple.dataset[token] != triple.dataset[token + '-original']) $$1(triple).addClass('update');
+	    };
 	    this.translate = labels || {};
 	    this.view = {
 	        label: function label() {
@@ -44129,17 +44157,15 @@
 	            el.find('input').each(function (i, e) {
 	                return $$1(e).typeahead({ minLength: 3, highlight: true }, { source: substringMatcher(names) });
 	            });
-	            el.find('.token').on('typeahead:select', function (e, text) {
-	                return $$1(e.currentTarget).find('pre').text(text);
+
+	            el.find('.token').on('typeahead:selected', self.updateValue);
+	            el.find('.token').on('typeahead:autocompleted', self.updateValue);
+	            el.find('.token').on('keyup', function (e) {
+	                if (e.key.length === 1 || e.key === "Backspace") {
+	                    self.updateValue(e, e.target.value);
+	                }
 	            });
-	            el.find('.token pre').on("DOMSubtreeModified", function (e) {
-	                var target = $$1(e.target);
-	                var triple = target.closest('.triple');
-	                var token = target.closest('.token').data('token');
-	                triple.get(0).setAttribute('data-' + token, target.text());
-	                if (triple.data(token + '-original') != triple.data(token)) triple.addClass('update');
-	                // set update class?
-	            });
+
 	            return el;
 	        }
 
@@ -44263,6 +44289,8 @@
 	    jqParent.append(modal);
 
 	    jqParent.mouseup(function (e) {
+
+	        if ($$1(e.target).closest('#global-view').length) return;
 	        var pos = $$1('#popover-selection');
 	        if (pos) {
 	            pos.popover('destroy');
