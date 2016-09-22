@@ -192,12 +192,12 @@
  * Styling nodes and links incl. :hover
  */
 
-circle.node {
+g.node > circle {
     fill: #888;
     stroke: white;
     stroke-width: 4;
 }
-circle.node:hover {
+g.node > circle:hover {
     fill: red;
 }
 line.link {
@@ -208,6 +208,31 @@ line.link {
 line.link:hover {
     fill:red;
     stroke: red;
+}
+text.node-label {
+    font: 0.7em sans-serif;
+    color: #337ab7;
+}
+
+.upper-half {
+    position:fixed;
+    border-bottom-left-radius:0px;
+    border-bottom-right-radius:0px;
+    bottom: 50%;
+    top: 5%;
+    left: 5%;
+    right: 5%;
+    margin-bottom: 0px;
+}
+.lower-half {
+    overflow: scroll;
+    position: fixed;
+    top: 50%;
+    left: 5%;
+    right: 5%;
+    max-height: 45%;
+    border-top-left-radius:0px;
+    border-top-right-radius:0px;
 }
 
 /**
@@ -222,6 +247,14 @@ line.link:hover {
 #edit_modal > .well {
     background-color: white;
     padding: 0px;
+}
+
+#nodelink {
+    min-height: 45%;
+}
+
+#rdftable {
+    max-height: 45%;
 }
 
 #edit_btn {
