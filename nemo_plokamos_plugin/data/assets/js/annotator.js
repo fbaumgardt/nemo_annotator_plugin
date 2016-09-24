@@ -30154,12 +30154,12 @@
 	    return $$1.ajax({ url: endpoint, type: 'POST', data: query, contentType: mime, dataType: "json" });
 	};
 
-	var sparqlSelect = function sparqlSelect(urn) {
-	    return ["PREFIX oa: <http://www.w3.org/ns/oa#>", "SELECT DISTINCT ?s ?p ?o ?g", "WHERE {", "# bind parameters", "BIND(<" + urn + "> AS ?urn)", "# select annotations", "?annotation oa:hasTarget/oa:hasSource ?urn .", "# retrieve relevant direct and indirect properties", "{", "?annotation oa:hasTarget ?s .", "GRAPH ?g {?s ?p ?o}", "}", "UNION", "{", "?annotation oa:annotatedBy ?s .", "GRAPH ?g {?s ?p ?o}", "}", "UNION", "{", "?annotation oa:serializedBy ?s .", "GRAPH ?g {?s ?p ?o}", "}", "UNION", "{", "?annotation oa:hasTarget/oa:hasSelector ?s .", "GRAPH ?g {?s ?p ?o}", "}", "UNION", "{", "?annotation oa:hasBody ?g .", "GRAPH ?g {?s ?p ?o}", "}", "UNION", "{", "BIND(?annotation AS ?s)", "GRAPH ?g {?s ?p ?o}", "}", "}"].join("\n");
+	var sparqlSelect = function sparqlSelect(urn, user) {
+	    return ["PREFIX oa: <http://www.w3.org/ns/oa#>", "SELECT DISTINCT ?s ?p ?o ?g", "WHERE {", "# bind parameters", "BIND(<" + urn + "> AS ?urn)", "BIND(<" + user + "> AS ?user)", "# select annotations", "?annotation oa:hasTarget/oa:hasSource ?urn .", "?annotation oa:annotatedBy ?user .", "# retrieve relevant direct and indirect properties", "{", "?annotation oa:hasTarget ?s .", "GRAPH ?g {?s ?p ?o}", "}", "UNION", "{", "?annotation oa:serializedBy ?s .", "GRAPH ?g {?s ?p ?o}", "}", "UNION", "{", "?annotation oa:hasTarget/oa:hasSelector ?s .", "GRAPH ?g {?s ?p ?o}", "}", "UNION", "{", "?annotation oa:hasBody ?g .", "GRAPH ?g {?s ?p ?o}", "}", "UNION", "{", "BIND(?annotation AS ?s)", "GRAPH ?g {?s ?p ?o}", "}", "}"].join("\n");
 	};
 
-	var oaQuery = function oaQuery(endpoint, urn) {
-	    var query = urn ? sparqlSelect(urn) : undefined;
+	var oaQuery = function oaQuery(endpoint, urn, user) {
+	    var query = urn && user ? sparqlSelect(urn, user) : undefined;
 	    return sparqlQuery(endpoint, query);
 	};
 
@@ -30271,8 +30271,8 @@
 	        classCallCheck(this, Model);
 
 	        this.app = app;
-	        this.defaultDataset = [];
-	        this.namedDataset = [];
+	        this.defaultDataset = ["http://data.perseids.org/graphs/persons"];
+	        this.namedDataset = ["http://data.perseids.org/graphs/persons"];
 	        this.store = {};
 	        this.upstream = [];
 	        /**
@@ -30289,7 +30289,7 @@
 	            var seq = _$1.map(data, function (x) {
 	                return { sparql: x, deferred: $$1.Deferred() };
 	            });
-	            _$1.reduce(seq, function (previous, current) {
+	            var last = _$1.reduce(seq, function (previous, current) {
 	                previous.then(function (acc) {
 	                    _this.store.executeWithEnvironment(current.sparql, _this.defaultDataset, _this.namedDataset, function (e, r) {
 	                        acc.push({ sparql: current.sparql, error: e, result: r });
@@ -30299,7 +30299,17 @@
 	                return current.deferred.promise();
 	            }, start.promise());
 	            start.resolve([]);
-	            return (_$1.last(seq) || { deferred: $$1.Deferred().resolve([]) }).deferred.promise();
+	            return last.then(function (result) {
+	                var deferred = $$1.Deferred();
+	                _this.store.registeredGraphs(function (e, g) {
+	                    _this.namedDataset = _$1.uniq(_$1.map(g, function (x) {
+	                        return x.nominalValue;
+	                    }));
+	                    _this.defaultDataset = _this.namedDataset;
+	                    deferred.resolve(result);
+	                });
+	                return deferred.promise();
+	            });
 	        };
 	        this.reset = function () {
 	            var outer = $$1.Deferred();
@@ -30329,7 +30339,7 @@
 	            var _this2 = this;
 
 	            var source = endpoints.read || endpoints.query || "/";
-	            var promise = source.slice(-5) === '.json' ? $$1.getJSON(source) : oaQuery(source, urn);
+	            var promise = source.slice(-5) === '.json' ? $$1.getJSON(source) : oaQuery(source, urn, user);
 	            // planned: should be done in its own class, resulting in promise for store, which gets assigned to this.store
 	            return promise.then(function (data) {
 	                return SPARQL.bindingsToInsert(data.results.bindings);
@@ -44306,14 +44316,12 @@
 	            var selector = OA.create("http://www.w3.org/ns/oa#TextQuoteSelector")(jqParent, selection);
 
 	            modal.update({}, selector);
-	            origin = { data: function data() {
-	                    return {};
-	                } };
 	            span = document.createElement('span');
 	            span.setAttribute('id', 'popover-selection');
+	            span.setAttribute('data-graphs', '{}');
 	            wrapRangeText(span, selection.getRangeAt(0));
-
-	            $$1('#popover-selection').popover({
+	            origin = $$1('#popover-selection');
+	            origin.popover({
 	                container: "body",
 	                html: "true",
 	                trigger: "manual",
@@ -44321,7 +44329,7 @@
 	                title: selector.exact,
 	                content: "<div class='popover-footer'/>"
 	            });
-	            $$1('#popover-selection').popover('show');
+	            origin.popover('show');
 	        }
 	    });
 
@@ -44695,6 +44703,21 @@
 	            var selectorId = _.find(bindings, function (binding) {
 	                return binding.p.value === "http://www.w3.org/ns/oa#exact";
 	            }).s.value;
+	            var object = _.find(bindings, function (binding) {
+	                return binding.p.value.endsWith("bond-with");
+	            }).o.value;
+	            var bond = _.find(bindings, function (binding) {
+	                return binding.p.value.endsWith("has-bond");
+	            }).o.value;
+	            var predicate = _.find(bindings, function (binding) {
+	                return binding.s.value === bond && binding.p.value.endsWith("bond-with");
+	            }).o.value;
+	            var title = [{
+	                "g": { "type": "uri", "value": self.defaultGraph },
+	                "s": { "type": "uri", "value": annotationId },
+	                "p": { "type": "uri", "value": "http://purl.org/dc/terms/title" },
+	                "o": { "type": "literal", "value": object + ' identifies ' + object.replace('http://data.perseus.org/people/smith:', '').split('-')[0] + ' as ' + predicate + ' in ' + self.urn }
+	            }];
 	            // planned: make independent of selector type
 	            var targetId = annotationId + "#target-" + Utils.hash(JSON.stringify(selectorId)).slice(0, 4);
 	            var oa = [{
@@ -44706,12 +44729,17 @@
 	                "g": { "type": "uri", "value": self.defaultGraph },
 	                "s": { "type": "uri", "value": annotationId },
 	                "p": { "type": "uri", "value": "http://purl.org/dc/terms/source" },
-	                "o": { "type": "uri", "value": "https://github.com/fbaumgardt/perseids-annotator" }
+	                "o": { "type": "uri", "value": "https://github.com/perseids-project/plokamos" }
 	            }, {
 	                "g": { "type": "uri", "value": self.defaultGraph },
 	                "s": { "type": "uri", "value": annotationId },
 	                "p": { "type": "uri", "value": "http://www.w3.org/ns/oa#serializedBy" },
-	                "o": { "type": "uri", "value": "https://github.com/fbaumgardt/perseids-annotator" }
+	                "o": { "type": "uri", "value": "https://github.com/perseids-project/plokamos" } // todo: add version
+	            }, {
+	                "g": { "type": "uri", "value": self.defaultGraph },
+	                "s": { "type": "uri", "value": annotationId },
+	                "p": { "type": "uri", "value": "http://www.w3.org/ns/oa#motivatedBy" },
+	                "o": { "type": "uri", "value": "http://www.w3.org/ns/oa#identifying" }
 	            }, {
 	                "g": { "type": "uri", "value": self.defaultGraph },
 	                "s": { "type": "uri", "value": annotationId },
@@ -44762,7 +44790,7 @@
 	            ];
 	            _this.model.defaultDataset.push(annotationId);
 	            _this.model.namedDataset.push(annotationId);
-	            var insert = SPARQL.bindingsToInsert(_.flatten([oa, date, user, target, bindings]).map(function (gspo) {
+	            var insert = SPARQL.bindingsToInsert(_.flatten([oa, date, user, target, title, bindings]).map(function (gspo) {
 	                return gspo.g.value ? gspo : SPARQL.gspoToBinding(gspo);
 	            }));
 	            result = _this.model.execute(insert);
