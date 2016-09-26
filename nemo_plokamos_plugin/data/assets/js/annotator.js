@@ -30204,7 +30204,7 @@
 	        key: "gspoToBinding",
 	        value: function gspoToBinding(gspo) {
 	            return _$1.mapValues(gspo, function (prop) {
-	                if (prop.startsWith("http://") || prop.startsWith("http://")) {
+	                if ((prop.startsWith("http://") || prop.startsWith("urn:")) && !(prop.indexOf(' ') + 1)) {
 	                    return { type: "uri", value: prop };
 	                } else if (prop.startsWith("_:")) {
 	                    return { type: "bnode", value: prop };
@@ -30271,8 +30271,8 @@
 	        classCallCheck(this, Model);
 
 	        this.app = app;
-	        this.defaultDataset = ["http://data.perseids.org/graphs/persons"];
-	        this.namedDataset = ["http://data.perseids.org/graphs/persons"];
+	        this.defaultDataset = [];
+	        this.namedDataset = [];
 	        this.store = {};
 	        this.upstream = [];
 	        /**
@@ -43347,13 +43347,9 @@
 	        key: 'label',
 	        value: function label(uri) {
 	            var term = _$1.reduce(namespaces, function (str, ns) {
-	                return str.replace(new RegExp("^" + ns.uri), "").replace(new RegExp("^" + ns.prefix));
+	                return str.replace(new RegExp("^" + ns.uri), "").replace(new RegExp("^" + ns.prefix), "");
 	            }, uri);
 	            var labels = {
-	                "EnemyOf": "Is Enemy Of",
-	                "CompanionOf": "Is Companion Of",
-	                "WifeOf": "Is Wife Of",
-	                "HusbandOf": "Is Husband Of",
 	                "AcknowledgedFamilyRelationship": "Has Acknowledged Family Relationship With",
 	                "AdoptedFamilyRelationship": "Has Adopted Family Relationship With",
 	                "AllianceWith": "Has Alliance With",
@@ -43365,10 +43361,12 @@
 	                "ChildOf": "Is Child Of",
 	                "ChildOfSiblingOf": "Is ChildOfSibling Of",
 	                "ClaimedFamilyRelationship": "Has Claimed Family Relationship With",
+	                "CompanionOf": "Is Companion Of",
 	                "CousinOf": "Is Cousin Of",
 	                "DaughterOf": "Is Daughter Of",
 	                "DescendentOf": "Is Descendent Of",
 	                "EmnityFor": "Has Emnity For",
+	                "EnemyOf": "Is Enemy Of",
 	                "ExtendedFamilyOf": "Is Extended Family Of",
 	                "ExtendedHouseholdOf": "Is Extended Household Of",
 	                "FamilyOf": "Is Family Of",
@@ -43391,6 +43389,7 @@
 	                "HereditaryFamilyOf": "Is HereditaryFamily Of",
 	                "HouseSlaveOf": "Is HouseSlave Of",
 	                "HouseholdOf": "Is Household Of",
+	                "HusbandOf": "Is Husband Of",
 	                "InLawFamilyRelationship": "Has In-Law Family Relationship With",
 	                "IntimateRelationshipWith": "Has Intimate Relationship With",
 	                "KinOf": "Is Kin Of",
@@ -43411,7 +43410,8 @@
 	                "SlaveOf": "Is Slave Of",
 	                "SonOf": "Is Son Of",
 	                "StepFamilyRelationship": "Has Step Family Relationship With",
-	                "UncleOf": "Is Uncle Of"
+	                "UncleOf": "Is Uncle Of",
+	                "WifeOf": "Is Wife Of"
 	            };
 
 	            var uri = uri.startsWith("http://data.perseus.org/people/") ? uri.replace("http://data.perseus.org/people/", '').replace('#this', '') : uri;
@@ -44475,8 +44475,9 @@
 
 	        var model = app.model;
 
+	        this.spinner = $$1('<div class="spinner"><span class="glyphicon glyphicon-refresh glyphicon-spinning"></span><br><span>Loading ...</span></div>').appendTo(app.anchor);
 	        // planned: move this to an utility class, note: var escape = (s) => s.replace(/[-/\\^$*+?.()（）|[\]{}]/g, '\\$&').replace(/\$/g, '$$$$');
-
+	        this.spinner.css('display', 'inline-block');
 	        /**
 	         * Mark selector positions with span tag and add quads to data
 	         * @type {{[http://www.w3.org/ns/oa#TextQuoteSelector]: ((p1:*, p2:*))}}
@@ -44573,15 +44574,20 @@
 	        };
 
 	        this.reset = function () {
+	            _this.spinner.css('display', 'inline-block');
 	            _this.unload();
-	            _this.load();
+	            _this.load().then(function () {
+	                return _this.spinner.css('display', 'none');
+	            });
 	        };
 
 	        // var body = $('body');
 	        this.tooltip = new Tooltip(app);
 	        this.delete = new Editor(app);
 	        this.nodelink = new NodeLink(app);
-	        this.load();
+	        this.load().then(function () {
+	            return _this.spinner.css('display', 'none');
+	        });
 	    }
 
 	    // planned: move plugins into lists for elements (e.g. tooltip) and document (e.g. nodelink)
@@ -44631,7 +44637,6 @@
 	    this.defaultGraph = "http://data.perseus.org/graphs/persons";
 	    this.userId = app.anchor.data('user');
 	    this.urn = app.anchor.data('urn');
-	    // todo: add controls for history, save at bottom of anchor
 	    this.anchor = app.anchor;
 	    this.model = app.model;
 	    this.applicator = app.applicator;
