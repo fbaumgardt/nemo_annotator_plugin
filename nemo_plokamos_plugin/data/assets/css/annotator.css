@@ -35,9 +35,9 @@
     width: 40px;
     height: 40px;
     text-align: center;
-    padding: 6px 0;
+    padding: 3px 0px;
     font-size: 18px;
-    line-height: 1.42;
+    line-height: 1;
     border-radius: 20px;
 }
 
@@ -61,21 +61,31 @@
     cursor: pointer;
 }
 .tt-label {
+    cursor: pointer;
     font-size: 0.8em;
+    text-decoration: underline;
+    color: #337ab7;/*
     border: 1px solid #444;
-    border-radius: 3px;
+    border-radius: 3px;*/
     padding: 2px;
     margin: 0px 0px;
 }
+.tt-label:hover {
+    color: #fe5623;
+}
+
 .popover {
     max-width: 67%;
     padding: 0px;
-}
+/** We may want to use shadows and simpler interfaces
+    -moz-box-shadow:    1px 1px 2px 3px #666;
+    -webkit-box-shadow: 1px 1px 2px 3px #666;
+    box-shadow:         1px 1px 2px 3px #666;
+*/}
 
 .popover-title {
     border: 1px solid #eee;
-    margin-bottom: 10px;
-    background-color: #fff;
+    background-color: #fdfdfd;
 }
 
 .popover-content {
@@ -84,10 +94,12 @@
 
 .popover-list {
     padding: 0px 5px;
+    margin-top:10px;
+    margin-bottom: 10px;
 }
 
 .popover.top > .arrow:after {
-    border-top-color: #444;
+    border-top-color: #eeeeee;
 }
 
 .popover-footer {
@@ -96,11 +108,10 @@
     height: 25px;
     width: 100%;
     mind-width: 30px;
-    background-color: #444;
+    background-color: #f9f9f9;
     border-radius: 0 0 0.5rem 0.5rem;
-    border: 1px solid #444;
-    border-top-color: #777;
-    margin-top: 10px;
+    border: 1px solid #eee;
+    border-top-color: #ddd;
 }
 
 #popover-selection {
@@ -222,6 +233,8 @@ text.node-label {
     left: 5%;
     right: 5%;
     margin-bottom: 0px;
+    -webkit-box-shadow: 0 5px 10px rgba(0,0,0,.2);
+    box-shadow: 0 5px 10px rgba(0,0,0,.2);
 }
 .lower-half {
     overflow: scroll;
@@ -232,6 +245,8 @@ text.node-label {
     max-height: 45%;
     border-top-left-radius:0px;
     border-top-right-radius:0px;
+    -webkit-box-shadow: 0 5px 10px rgba(0,0,0,.2);
+    box-shadow: 0 5px 10px rgba(0,0,0,.2);
 }
 
 /**
@@ -241,6 +256,7 @@ text.node-label {
 
 .modal {
     margin:20px;
+    font-family: sans-serif;
 }
 
 #edit_modal > .well {
@@ -256,10 +272,8 @@ text.node-label {
     max-height: 45%;
 }
 
-#edit_btn {
-    font-size: 0.5em;
-    color: red;
-    background-color: #777;
+.edit_btn {
+    font-size: 0.7em;
     padding: 2px 10px;
 }
 
@@ -270,6 +284,7 @@ text.node-label {
 .sentence {
     padding: 3px;
     width:100%;
+    background-color: #f9f9f9;
     border-bottom-left-radius: 0px;
     border-bottom-right-radius: 0px;
     margin-bottom:0px;
@@ -281,18 +296,27 @@ text.node-label {
     padding-top:3px;
     cursor: pointer;
     text-align:center;
-    background-color: #444;
-    color:#eee;
+    background-color: #e3e3e3;
+    color: #337ab7;
     width:100%;
     margin-top:0px;
+    border: 1px solid #e3e3e3;
     border-bottom-left-radius:4px;
     border-bottom-right-radius:4px;
 }
 .btn-delete:hover {
-    background-color: #ff1a1a;
+    background-color: #ddd;
+    color: crimson;
 }
 .modal-footer {
-    background-color: #444;
+    background-color: #f9f9f9;
+    padding: 8px 15px;
+}
+.modal-header {
+    background-color: #fdfdfd;
+}
+#new_button {
+    font-size: 2em;
 }
 
 /**
