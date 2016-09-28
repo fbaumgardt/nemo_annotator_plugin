@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='nemo_plokamos_plugin',
-    version="0.0.8",
+    version="0.0.8b",
     packages=find_packages(exclude=["examples", "tests"]),
     url='https://github.com/perseids-project/nemo_plokamos_plugin',
     license='GNU GPL',
