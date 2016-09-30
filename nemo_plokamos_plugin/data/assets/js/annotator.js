@@ -44411,7 +44411,9 @@
 	            return SNAP.expand()(t, annotations);
 	        }));
 	        _$1.assign(selector, { id: cite + "#sel-" + Utils.hash(JSON.stringify(selector)).slice(0, 4) });
-	        var selector_triples = OA.expand(selector.type)(selector);
+	        var selector_triples = OA.expand(selector.type)(_$1.mapValues(selector, function (v) {
+	            return v.replace(new RegExp('\n', 'ig'), '');
+	        }));
 	        var create_triples = new_triples.length ? _$1.concat(new_triples, selector_triples) : [];
 
 	        var acc = [];
