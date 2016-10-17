@@ -43427,10 +43427,12 @@
 
 
 	    $(document).on('click', '.popover-footer > .btn', function (e) {
-	        var id = $('.popover-source').data('source-id');
-	        $(document.getElementById(id)).click();
-	        $('#popover-selection').popover('hide');
+	        $('.popover').map(function (i, j) {
+	            return $(document.querySelectorAll('[aria-describedby="' + j.id + '"]')).click();
+	        });
+	        $('#popover-selection').popover('destroy');
 	    });
+
 	    this.register = function (jqElement) {
 	        // planned: stringify should check ontology and select simplifier or stringify raw (.value)
 	        function stringify(obj) {
@@ -43448,6 +43450,9 @@
 	            placement: "auto top",
 	            title: jqElement.data('selector').exact,
 	            content: content
+	        });
+	        jqElement.click(function (e) {
+	            return $('#' + e.target.getAttribute('aria-describedby')).toggleClass('fixed');
 	        });
 	    };
 	};
@@ -44300,7 +44305,7 @@
 	    var labels = SNAP.labels;
 	    var template = new Templates(labels);
 
-	    var button = $$1('<div class="btn btn-primary edit_btn" data-toggle="modal" data-target="#edit_modal"><span class="glyphicon glyphicon-cog"></span></div>');
+	    var button = '<div class="btn btn-primary edit_btn" data-toggle="modal" data-target="#edit_modal"><span class="glyphicon glyphicon-cog"></span></div>';
 	    $$1('body').on('shown.bs.popover', function (e) {
 	        return $$1('#' + e.target.getAttribute('aria-describedby')).find('.popover-footer').append(button);
 	    });
@@ -44310,7 +44315,10 @@
 
 	    jqParent.mouseup(function (e) {
 
+	        // Don't use selection inside #global-view
 	        if ($$1(e.target).closest('#global-view').length) return;
+
+	        // If selection exists, remove it
 	        var pos = $$1('#popover-selection');
 	        if (pos) {
 	            pos.popover('destroy');
@@ -44325,13 +44333,14 @@
 
 	            var selector = OA.create("http://www.w3.org/ns/oa#TextQuoteSelector")(jqParent, selection);
 
-	            modal.update({}, selector);
+	            // modal.update({},selector)
 	            span = document.createElement('span');
 	            span.setAttribute('id', 'popover-selection');
-	            span.setAttribute('data-graphs', '{}');
+	            span.setAttribute('data-annotations', '{}');
+	            span.setAttribute('data-selector', JSON.stringify(selector));
 	            wrapRangeText(span, selection.getRangeAt(0));
-	            origin = $$1('#popover-selection');
-	            origin.popover({
+	            span = $$1('#popover-selection');
+	            span.popover({
 	                container: "body",
 	                html: "true",
 	                trigger: "manual",
@@ -44339,7 +44348,7 @@
 	                title: selector.exact,
 	                content: "<div class='popover-footer'/>"
 	            });
-	            origin.popover('show');
+	            span.popover('show');
 	        }
 	    });
 
@@ -44440,6 +44449,12 @@
 	        origin.popover('hide');
 	    });
 
+	    $$1('body').on('click', '.edit_btn', function (e) {
+	        var id = $$1(e.target).closest('.popover').attr('id');
+	        origin = $$1(document.querySelectorAll('[aria-describedby="' + id + '"]'));
+	        modal.update(origin.data('annotations'), origin.data('selector'));
+	    });
+
 	    modal.update = function (data, newSelector) {
 	        // planned: apply ontology-specific transformations
 	        var graphs = SNAP.simplify()(data);
@@ -44450,10 +44465,10 @@
 	    };
 
 	    this.register = function (jqElement) {
-	        jqElement.click(function (e) {
-	            origin = jqElement;
-	            modal.update(jqElement.data('annotations'), jqElement.data('selector'));
-	        });
+	        //jqElement.click((e) => {
+	        //   origin = jqElement
+	        // modal.update(jqElement.data('annotations'),jqElement.data('selector'))
+	        //})
 	    };
 	};
 
@@ -44532,11 +44547,13 @@
 	                    return span;
 	                });
 
-	                return _$1.uniq(spans).map(function (span) {
+	                return _$1.uniqBy(spans.map(function (span) {
 	                    var data = store[span.getAttribute('id')];
 	                    var element = document.getElementById(span.getAttribute('id'));
 	                    element.setAttribute('data-annotations', JSON.stringify(data));
 	                    return $$1(element);
+	                }), function (j) {
+	                    return j.attr('id');
 	                });
 	            }).then(function (elements) {
 	                return elements.map(function (element) {
