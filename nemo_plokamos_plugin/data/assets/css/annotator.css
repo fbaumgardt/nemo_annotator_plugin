@@ -201,6 +201,15 @@
 .tt-input {
     height:40px !important;
 }
+.input-group input.tt-input {
+    height:40px !important;
+    -webkit-border-top-left-radius: 0px;
+    -moz-border-top-left-radius: 0px;
+    border-top-left-radius: 0px;
+    -webkit-border-bottom-left-radius: 0px;
+    -moz-border-bottom-left-radius: 0px;
+    border-bottom-left-radius: 0px;
+}
 
 /**
  * NodeLink
@@ -241,6 +250,11 @@ text.node-label {
     -webkit-box-shadow: 0 5px 10px rgba(0,0,0,.2);
     box-shadow: 0 5px 10px rgba(0,0,0,.2);
 }
+.middle-bar {
+    height: 50px;
+    width: 100%;
+    background-color: #e3e3e3;
+}
 .lower-half {
     overflow: scroll;
     position: fixed;
@@ -252,6 +266,12 @@ text.node-label {
     border-top-right-radius:0px;
     -webkit-box-shadow: 0 5px 10px rgba(0,0,0,.2);
     box-shadow: 0 5px 10px rgba(0,0,0,.2);
+}
+
+.filter-btn {
+    float: left;
+    padding: 2px;
+    cursor: pointer;
 }
 
 /**
@@ -277,7 +297,7 @@ text.node-label {
     max-height: 45%;
 }
 
-.edit_btn {
+.btn-edit {
     font-size: 0.7em;
     padding: 2px 10px;
 }
