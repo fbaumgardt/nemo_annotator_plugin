@@ -21,7 +21,7 @@ class PlokamosPlugin(PluginPrototype):
     """
     HAS_AUGMENT_RENDER = True
     TEMPLATES = {
-        "plokamos": resource_filename("nemo_plokamos_plugin", "data/templates")
+        "main": resource_filename("nemo_plokamos_plugin", "data/templates")
     }
 
     ROUTES = PluginPrototype.ROUTES + [
@@ -44,11 +44,24 @@ class PlokamosPlugin(PluginPrototype):
 
     def render(self, **kwargs):
         update = kwargs
+        if 'passage_identifier' in update['url'].keys():
+            update['urn'] = update['url']['collection']+':'+update['url']['textgroup']+'.'+update['url']['work']+'.'+update['url']['version']+update['url']['passage_identifier']
+        elif 'version' in update['url'].keys():
+            update['urn'] = update['url']['collection']+':'+update['url']['textgroup']+'.'+update['url']['work']+'.'+update['url']['version']
+        elif 'work' in update['url'].keys():
+            update['urn'] = update['url']['collection']+':'+update['url']['textgroup']+'.'+update['url']['work']
+        elif 'textgroup' in update['url'].keys():
+            update['urn'] = update['url']['collection']+':'+update['url']['textgroup']
+        elif 'collection' in update['url'].keys():
+            update['urn'] = update['url']['collection']
+        else:
+            update['urn'] = 'invalid-urn-do-not-load'
+        update["update_endpoint"] = self.annotation_update_endpoint
+        update["select_endpoint"] = self.annotation_select_endpoint
         if "template" in kwargs and kwargs["template"] == "main::text.html":
-            update["template"] = "plokamos::text.html"
+            #update["template"] = "plokamos::text.html"
             update["text_passage"] = Markup(' '.join([ x.strip() for x in kwargs["text_passage"].splitlines() ]))
-            update["update_endpoint"] = self.annotation_update_endpoint
-            update["select_endpoint"] = self.annotation_select_endpoint
+        # elif
         return update
 
     def r_plokamos_assets(self, filename):
