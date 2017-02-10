@@ -12,10 +12,11 @@
     <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css">
     <link rel="stylesheet" href="{{url_for('.static', filename='css/theme.min.css')}}">
     <link rel="stylesheet" href="/plokamos/assets/css/annotator.css">
+    <link rel="stylesheet" type="text/css" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-multiselect/0.9.13/css/bootstrap-multiselect.css">
     {% for filename, directory in assets["css"].items() %}
-    {% if directory %}<link rel="stylesheet" href="{{url_for('.secondary_assets', type='css', asset=filename)}}">
-    {% else %}<link rel="stylesheet" href="{{ filename }}">
-    {% endif %}
+        {% if directory %}<link rel="stylesheet" href="{{url_for('.secondary_assets', filetype='css', asset=filename)}}">
+        {% else %}<link rel="stylesheet" href="{{ filename }}">
+        {% endif %}
     {% endfor %}
     <!-- HTML5 shim and Respond.js for IE8 support of HTML5 elements and media queries -->
     <!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
@@ -24,13 +25,15 @@
     <script src="https://oss.maxcdn.com/respond/1.4.2/respond.min.js"></script>
     <![endif]-->
 </head>
-<body>
+<body data-urn="urn:cts:{{url['collection']}}:{{url['textgroup']}}.{{url['work']}}.{{url['version']}}:{{url['passage_identifier']}}"
+data-sparql-update-endpoint="{{ update_endpoint }}" data-sparql-select-endpoint="{{ select_endpoint }}" data-user="{{session['oauth_user_uri']}}">
 <nav class="col-md-2" id="menu-container">
     (% include "nemo_oauth_plugin::login.html" %}"
     {% include "main::menu.html" %}
 </nav>
 <div class="col-md-10" id="reading-container">
     {% include "main::breadcrumb.html" %}
+    {% include "nemo_oauth_plugin::user.html" %}
     {% block article %}
     {% endblock %}
 </div>
@@ -44,5 +47,20 @@
 {% else %}<script src="{{ filename }}"></script>
 {% endif %}
 {% endfor %}
+<script type="text/javascript" src="/plokamos/assets/js/rdfstore.js"></script>
+<script type="text/javascript" src="/plokamos/assets/js/annotator.js"></script>
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-multiselect/0.9.13/js/bootstrap-multiselect.min.js"></script>
+<script type="text/javascript">
+    $(window).load(function() {
+        (new Plokamos(document.getElementById('reading-container'))).initialize({
+        {% if 'passage_identifier' in url.keys() %}
+            applicator: true,
+            history: true,
+            annotator: ['social-network','characterizations'],
+        {% endif %}
+            corpusdiagram: true
+        })
+    })
+</script>
 </body>
 </html>
