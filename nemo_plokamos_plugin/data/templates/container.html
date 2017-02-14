@@ -28,7 +28,6 @@
 <body data-urn="urn:cts:{{url['collection']}}:{{url['textgroup']}}.{{url['work']}}.{{url['version']}}:{{url['passage_identifier']}}"
 data-sparql-update-endpoint="{{ update_endpoint }}" data-sparql-select-endpoint="{{ select_endpoint }}" data-user="{{session['oauth_user_uri']}}">
 <nav class="col-md-2" id="menu-container">
-    (% include "nemo_oauth_plugin::login.html" %}"
     {% include "main::menu.html" %}
 </nav>
 <div class="col-md-10" id="reading-container">
