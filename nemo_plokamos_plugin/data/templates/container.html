@@ -25,7 +25,7 @@
     <script src="https://oss.maxcdn.com/respond/1.4.2/respond.min.js"></script>
     <![endif]-->
 </head>
-<body data-urn="urn:cts:{{url['collection']}}:{{url['textgroup']}}.{{url['work']}}.{{url['version']}}:{{url['passage_identifier']}}"
+<body data-urn="urn:cts:{{ urns }}"
 data-sparql-update-endpoint="{{ update_endpoint }}" data-sparql-select-endpoint="{{ select_endpoint }}" data-user="{{session['oauth_user_uri']}}">
 <nav class="col-md-2" id="menu-container">
     {% include "main::menu.html" %}
