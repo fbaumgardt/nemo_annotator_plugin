@@ -45,17 +45,17 @@ class PlokamosPlugin(PluginPrototype):
     def render(self, **kwargs):
         update = kwargs
         if 'passage_identifier' in update['url'].keys():
-            update['urn'] = update['url']['collection']+':'+update['url']['textgroup']+'.'+update['url']['work']+'.'+update['url']['version']+update['url']['passage_identifier']
+            update['urns'] = update['url']['collection']+':'+update['url']['textgroup']+'.'+update['url']['work']+'.'+update['url']['version']+'.'+update['url']['passage_identifier']
         elif 'version' in update['url'].keys():
-            update['urn'] = update['url']['collection']+':'+update['url']['textgroup']+'.'+update['url']['work']+'.'+update['url']['version']
+            update['urns'] = update['url']['collection']+':'+update['url']['textgroup']+'.'+update['url']['work']+'.'+update['url']['version']
         elif 'work' in update['url'].keys():
-            update['urn'] = update['url']['collection']+':'+update['url']['textgroup']+'.'+update['url']['work']
+            update['urns'] = update['url']['collection']+':'+update['url']['textgroup']+'.'+update['url']['work']
         elif 'textgroup' in update['url'].keys():
-            update['urn'] = update['url']['collection']+':'+update['url']['textgroup']
+            update['urns'] = update['url']['collection']+':'+update['url']['textgroup']
         elif 'collection' in update['url'].keys():
-            update['urn'] = update['url']['collection']
+            update['urns'] = update['url']['collection']
         else:
-            update['urn'] = 'invalid-urn-do-not-load'
+            update['urns'] = 'invalid-urn-do-not-load'
         update["update_endpoint"] = self.annotation_update_endpoint
         update["select_endpoint"] = self.annotation_select_endpoint
         if "template" in kwargs and kwargs["template"] == "main::text.html":
