@@ -13,11 +13,11 @@ setup(
     description= "Plugin for Capitains Nemo to load Perseids Plokamos Annotator on passage page",
                  test_suite="tests",
     install_requires=[
-        "flask_nemo>=1.0.0b1",
+        "flask_nemo==1.0.0b3",
         "nemo-oauth-plugin>=0.0.4"
     ],
     tests_require=[
-        "flask_nemo>=1.0.0b1"
+        "flask_nemo==1.0.0b3"
     ],
     include_package_data=True,
     zip_safe=False
