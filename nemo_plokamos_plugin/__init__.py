@@ -5,6 +5,7 @@ import requests
 import re
 from nemo_oauth_plugin import NemoOauthPlugin
 
+PROXY = "/plokamos/proxy"
 
 class PlokamosPlugin(PluginPrototype):
     """ Perseids Plokamos Annotator Plugin for Nemo
@@ -26,13 +27,14 @@ class PlokamosPlugin(PluginPrototype):
 
     ROUTES = PluginPrototype.ROUTES + [
         ("/plokamos/assets/<path:filename>", "r_plokamos_assets", ["GET"]),
-        ("/plokamos/proxy", "r_plokamos_proxy", ["GET","POST"])
+        (PROXY, "r_plokamos_proxy", ["GET","POST"])
     ]
 
-    def __init__(self, annotation_update_endpoint, annotation_select_endpoint, *args, **kwargs):
+    def __init__(self, annotation_update_endpoint, annotation_select_endpoint, proxied=True, *args, **kwargs):
         super(PlokamosPlugin, self).__init__(*args, **kwargs)
         self.__annotation_update_endpoint__ = annotation_update_endpoint
         self.__annotation_select_endpoint__ = annotation_select_endpoint
+        self.proxied = proxied
 
     @property
     def annotation_update_endpoint(self):
@@ -56,8 +58,12 @@ class PlokamosPlugin(PluginPrototype):
             update['urns'] = update['url']['collection']
         else:
             update['urns'] = 'invalid-urn-do-not-load'
-        update["update_endpoint"] = self.annotation_update_endpoint
-        update["select_endpoint"] = self.annotation_select_endpoint
+        if self.proxied:
+            update["update_endpoint"] = PROXY
+            update["select_endpoint"] = PROXY
+        else:
+            update["update_endpoint"] = self.annotation_update_endpoint
+            update["select_endpoint"] = self.annotation_select_endpoint
         if "template" in kwargs and kwargs["template"] == "main::text.html":
             #update["template"] = "plokamos::text.html"
             update["text_passage"] = Markup(' '.join([ x.strip() for x in kwargs["text_passage"].splitlines() ]))
