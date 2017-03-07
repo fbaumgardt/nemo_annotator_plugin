@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='nemo_plokamos_plugin',
-    version="0.0.19",
+    version="0.0.20",
     packages=find_packages(exclude=["examples", "tests"]),
     url='https://github.com/perseids-project/nemo_plokamos_plugin',
     license='GNU GPL',
@@ -14,7 +14,7 @@ setup(
                  test_suite="tests",
     install_requires=[
         "flask_nemo==1.0.0b3",
-        "nemo-oauth-plugin>=0.0.4"
+        "nemo-oauth-plugin>=0.0.5"
     ],
     tests_require=[
         "flask_nemo==1.0.0b3"

@@ -30,11 +30,12 @@ class PlokamosPlugin(PluginPrototype):
         (PROXY, "r_plokamos_proxy", ["GET","POST"])
     ]
 
-    def __init__(self, annotation_update_endpoint, annotation_select_endpoint, proxied=True, *args, **kwargs):
+    def __init__(self, annotation_update_endpoint, annotation_select_endpoint, proxied_update=True, proxied_select=False, *args, **kwargs):
         super(PlokamosPlugin, self).__init__(*args, **kwargs)
         self.__annotation_update_endpoint__ = annotation_update_endpoint
         self.__annotation_select_endpoint__ = annotation_select_endpoint
-        self.proxied = proxied
+        self.proxied_update = proxied_update
+        self.proxied_select = proxied_select
 
     @property
     def annotation_update_endpoint(self):
@@ -58,11 +59,13 @@ class PlokamosPlugin(PluginPrototype):
             update['urns'] = update['url']['collection']
         else:
             update['urns'] = 'invalid-urn-do-not-load'
-        if self.proxied:
+        if self.proxied_update:
             update["update_endpoint"] = PROXY
-            update["select_endpoint"] = PROXY
         else:
             update["update_endpoint"] = self.annotation_update_endpoint
+        if self.proxied_select:
+            update["select_endpoint"] = PROXY
+        else:
             update["select_endpoint"] = self.annotation_select_endpoint
         if "template" in kwargs and kwargs["template"] == "main::text.html":
             #update["template"] = "plokamos::text.html"
@@ -114,10 +117,8 @@ class PlokamosPlugin(PluginPrototype):
             :rtype bool
         """
         authorized = False
-        user_re = re.compile(str('<' + user_uri + '>'))
-        annotatedBy_re = re.compile("http://www.w3.org/ns/oa#annotatedBy")
-        for line in query.split("\n"):
-            if annotatedBy_re.search(line) and user_re.search(line):
-                authorized = True
-        return authorized
+        # we'd like to delegate to the annotation store to check the URI against the graph to which the annotation
+        # belongs to make sure that the user has the rights to perform the operation.  For now we just confirm
+        # that we had a user 
+        return user_uri is not None
 
