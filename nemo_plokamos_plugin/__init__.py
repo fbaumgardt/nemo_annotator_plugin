@@ -48,7 +48,7 @@ class PlokamosPlugin(PluginPrototype):
     def render(self, **kwargs):
         update = kwargs
         if 'passage_identifier' in update['url'].keys():
-            update['urns'] = update['url']['collection']+':'+update['url']['textgroup']+'.'+update['url']['work']+'.'+update['url']['version']+'.'+update['url']['passage_identifier']
+            update['urns'] = update['url']['collection']+':'+update['url']['textgroup']+'.'+update['url']['work']+'.'+update['url']['version']+':'+update['url']['passage_identifier']
         elif 'version' in update['url'].keys():
             update['urns'] = update['url']['collection']+':'+update['url']['textgroup']+'.'+update['url']['work']+'.'+update['url']['version']
         elif 'work' in update['url'].keys():
