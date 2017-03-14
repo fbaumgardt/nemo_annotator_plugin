@@ -52350,6 +52350,7 @@ var CorpusDiagram = function CorpusDiagram(app) {
     classCallCheck(this, CorpusDiagram);
 
     self$2 = this;
+    self$2.data = "";
     self$2.anchor = $$1('<div id="global-view" class="well" style="position:fixed; z-index:1000;"/>');
     $$1('body').append(self$2.anchor);
     /* var globalViewBtn = $(`
@@ -52383,7 +52384,11 @@ var CorpusDiagram = function CorpusDiagram(app) {
     }
 
     init = function init(anchor) {
-        anchor.html('\n        <div id="plokamos-vis-main" class="col-xs-12">\n            <div id="plokamos-vis-list">\n            <ul class="nav nav-tabs">\n            <li class="active"><a data-toggle="tab" href="#Plokamos-vis">Visualization</a></li>\n            <li><a data-toggle="tab" href="#Social">Social Network</a></li>\n        <li><a data-toggle="tab" href="#Characterizations">Characterizations</a></li>\n            <!--div id="filterContainer" style="float:right">\n            <select id="linkFilters" multiple="multiple"></select>\n            </div-->\n            </ul>\n            <div class="tab-content">\n                <div id="Plokamos-vis" class="tab-pane fade in active"></div>\n                <div id="Social" class="tab-pane fade"></div>\n                <div id="Characterizations" class="tab-pane fade"></div>\n            </div>\n            </div>\n            </div>');
+        anchor.html('\n        <div id="plokamos-vis-main" class="col-xs-12">\n            <div id="plokamos-vis-list">\n            <ul class="nav nav-tabs">\n            <li class="active"><a data-toggle="tab" href="#Plokamos-vis">Visualization</a></li>\n            <li><a data-toggle="tab" href="#Social">Social Network</a></li>\n        <li><a data-toggle="tab" href="#Characterizations">Characterizations</a></li>\n            <!--div id="filterContainer" style="float:right">\n            <select id="linkFilters" multiple="multiple"></select>\n            </div-->\n            <div id="download-btn" class="btn btn-default" style="float:right"><a download="rdf.ttl" href="javascript:downloadRDF()">Download</a></div>\n            </ul>\n            <div class="tab-content">\n                <div id="Plokamos-vis" class="tab-pane fade in active"></div>\n                <div id="Social" class="tab-pane fade"></div>\n                <div id="Characterizations" class="tab-pane fade"></div>\n            </div>\n            </div>\n            </div>');
+        // window.downloadRDF = () => {
+        //     var data = new Blob([self.data], {type: 'text/plain'})
+        //     return window.URL.createObjectURL(data)
+        // }
     };
 
     activateForceLayout = function activateForceLayout(nodes, links) {
@@ -52582,6 +52587,9 @@ var CorpusDiagram = function CorpusDiagram(app) {
 
         return model.execute('SELECT * WHERE { GRAPH ?g {?s ?p ?o} }') //sparqlQuery(endpoint, query)
         .then(function (data) {
+            $$1("#download-btn a").attr("href", "data:text/turtle;charset=utf-8," + encodeURIComponent(_$1.last(data).result.map(function (x) {
+                return SPARQL.bindingToSPARQL(x);
+            }).join("\n")));
             return _$1.last(data).result.map(function (x) {
                 return _$1.mapValues(x, 'value');
             });
